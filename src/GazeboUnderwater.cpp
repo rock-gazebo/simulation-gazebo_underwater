@@ -1,40 +1,42 @@
 #include "GazeboUnderwater.hpp"
 #include "gazebo/math/Vector3.hh"
 
+using namespace gazebo;
 
 namespace gazebo_underwater
 {
-    void GazeboUnderwater::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf)
+    void GazeboUnderwater::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
     {
         gzmsg << "GazeboUnderwater: Loading underwater environment." << std::endl;
-        
+
         world = _world; 
         sdf = _sdf; 
-        
+
         loadParameters(); 
-        
-	    // Each simulation step the Update method is called to update the simulated sensors and actuators
-	    eventHandler.push_back(
-			    gazebo::event::Events::ConnectWorldUpdateBegin(
-					    boost::bind(&GazeboUnderwater::updateBegin,this, _1)));
+
+        // Each simulation step the Update method is called to update the simulated sensors and actuators
+        eventHandler.push_back(
+                event::Events::ConnectWorldUpdateBegin(
+                    boost::bind(&GazeboUnderwater::updateBegin,this, _1)));
     }
 
 
     template <class T> 
-    T GazeboUnderwater::getParameter(std::string _parameter_name)
+    T GazeboUnderwater::getParameter(std::string _parameter_name, T default_value)
     {
-        T var;
+        T var = default_value;
         if(sdf->HasElement(_parameter_name.c_str()))
         {
             var = sdf->Get< T >(_parameter_name.c_str());
             gzmsg << "GazeboUnderwater: " + _parameter_name + ": " << var << std::endl; 
-        }else{
-            gzmsg << "GazeboUnderwater: " + _parameter_name + " not found. Quit simulation... " << std::endl;
-            gazebo::shutdown();
         }        
+        else
+        {
+            gzmsg << "GazeboUnderwater: " + _parameter_name + ": using default " << default_value << std::endl; 
+        }
         return var;
     }
-            
+
 
     void GazeboUnderwater::loadParameters(void)
     {
@@ -46,81 +48,55 @@ namespace gazebo_underwater
         }else{
             gzmsg << "GazeboUnderwater: model not found. Quit simulation... " << std::endl;
         }
-        
-        width = getParameter<double>("width");
-        length = getParameter<double>("length");
-        height = getParameter<double>("height");
-        water_level = getParameter<double>("water_level");
-        viscous_damping = getParameter<double>("viscous_damping");
-        liquid_weight = getParameter<double>("liquid_weight");
+
+        size = getParameter<math::Vector3>("size",
+                math::Vector3(1, 1, 1));
+        centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy",
+                math::Vector3(0, 0, 0.1));
+        waterLevel      = getParameter<double>("water_level", 0.0);
+        viscousDamping  = getParameter<double>("viscous_damping", 0.0);
+        densityOfFluid = getParameter<double>("liquid_density", 1000);
     }
 
-    void GazeboUnderwater::updateBegin(gazebo::common::UpdateInfo const& info)
+    void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
     {
-        applyBuoyancy(); 
+        physics::LinkPtr link = model->GetLink( sdf->Get<std::string>("link_name") ); 
+        applyBuoyancy(link);
+        applyViscousFriction(link);
+    }
+
+    void GazeboUnderwater::applyViscousFriction(physics::LinkPtr link)
+    {
+        // Calculates dynamic viscous damp
+        math::Vector3 fluidVelocityRelative =
+            link->GetWorldPose().rot.RotateVectorReverse(fluidVelocity);
+        math::Vector3 velocityDifference =
+            link->GetRelativeLinearVel() - fluidVelocityRelative;
+        gzmsg << "viscous friction: " << velocityDifference * viscousDamping << std::endl;
+        link->AddForce(- velocityDifference * viscousDamping);
     }
 
 
-    void GazeboUnderwater::applyBuoyancy()
+    void GazeboUnderwater::applyBuoyancy(physics::LinkPtr link)
     {
-    	// Apply buoyancy to links in underwater environment
-		gazebo::math::Vector3 cobPosition;
-		gazebo::math::Vector3 velocityDifference;
-		gazebo::math::Vector3 gravity = world->GetPhysicsEngine()->GetGravity();
-		gazebo::math::Vector3 link_buoyancy;
-		double distancetosurface = 0.0; // Distance to surface is given in meters
-		double relative_height = 0.0;   // dimension in meter
-		double submersed_volume = 0.0;  // it must be dm^3
-		double compensation = 1.0;
-		gazebo::math::Vector3 buoyancy_center(0.0, 0.0, 0.0);
-//	    gazebo::math::Vector3 viscous_damping(0.5,0.5,0.5); 
-		gazebo::math::Vector3 fluid_velocity(0.0, 0.0, 0.0);
-//		gazebo::math::Vector3 link_friction(0.0, 0.0, 0.0);
-//		gazebo::math::Vector3 resultant_force(0.0, 0.0, 0.0);
-	
-	    gazebo::physics::LinkPtr link = model->GetLink( sdf->Get<std::string>("link_name") ); 
-   		
-		cobPosition = link->GetWorldPose().pos + 
-				link->GetWorldPose().rot.RotateVector(buoyancy_center);		
-	
-		// link_buoyancy goes to zero when the model link is above the surface. 
-		// it depends on the volume submersed
-		distancetosurface = water_level - cobPosition.z;
-		if(distancetosurface <= 0 )
-		{ 
-			submersed_volume = 0;
-		} else{
-			if(distancetosurface <= height)  // distancetosurface is in meters
-			{	
-				relative_height = distancetosurface;
-				submersed_volume = length * width * relative_height * 1000;  
-			}else
-			{
-				submersed_volume = length * width * height * 1000;
-			}
-		}
-		// The buoyancy opposes gravity	=> it is negative.		
-		link_buoyancy = - compensation * submersed_volume * liquid_weight * gravity;
-		
-		// Calculates dynamic viscous damp
-		velocityDifference = link->GetWorldPose().rot.RotateVectorReverse(link->GetWorldLinearVel() - fluid_velocity);
-//		velocityDifference = link->GetWorldLinearVel() + fluid_velocity;	
-		link_buoyancy -= link->GetWorldPose().rot.RotateVector(
-					viscous_damping * velocityDifference) ;
-//		link_friction = - link->GetWorldPose().rot.RotateVector( math::Vector3(
-//						  viscous_damping.x * velocityDifference.x,
-//						  viscous_damping.y * velocityDifference.y,
-//						  viscous_damping.z * velocityDifference.z));			
-		
-		
-		// Gazebo adds the link weight, so there is no need to calculate it. 
-		// resultant_force = link_buoyancy + link_friction; 
-	
-		link->AddForceAtWorldPosition(link_buoyancy, cobPosition);											
-//		link->AddForceAtWorldPosition(resultant_force, cobPosition);
-//  	link->AddForce(link_buoyancy);
+        math::Vector3 cobWorldPosition = link->GetWorldCoGPose().pos + 
+            link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);		
 
-    }   // applyBuoyancy() end
-}   // gazebo_underwater namespace
+        // link_buoyancy goes to zero when the model link is above the surface. 
+        // it depends on the volume submersed
+        double distanceToSurface = waterLevel - cobWorldPosition.z;
+
+        double submersedVolume = size.x * size.y * std::min(distanceToSurface, size.z);
+        if (submersedVolume <= 0)
+            submersedVolume = 0;
+
+        // Apply buoyancy to links in underwater environment
+        math::Vector3 gravityRelative = link->GetWorldPose().rot.
+            RotateVectorReverse(world->GetPhysicsEngine()->GetGravity());
+        // The buoyancy opposes gravity	=> it is negative.		
+        math::Vector3 buoyancyRelative = - submersedVolume * densityOfFluid * gravityRelative;
+        link->AddForceAtRelativePosition(buoyancyRelative, centerOfBuoyancy);
+    }
+}
 
 
