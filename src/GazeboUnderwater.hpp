@@ -16,7 +16,7 @@ namespace gazebo_underwater
             void applyViscousFriction(gazebo::physics::LinkPtr);
             void loadParameters(); 
             template <typename T>
-            T getParameter(std::string _parameter_name, T default_value);
+            T getParameter(std::string _parameter_name, std::string dimension, T default_value);
 
             gazebo::physics::WorldPtr world;
             gazebo::physics::ModelPtr model; 
@@ -27,9 +27,9 @@ namespace gazebo_underwater
             gazebo::math::Vector3 size;
             gazebo::math::Vector3 centerOfBuoyancy;
             gazebo::math::Vector3 fluidVelocity;
+            gazebo::math::Vector3 viscousDamping;
             double waterLevel;       // dimension in meter
             double densityOfFluid;
-            double viscousDamping;
 
         public: 
             virtual void Load(gazebo::physics::WorldPtr _parent, sdf::ElementPtr _sdf);
