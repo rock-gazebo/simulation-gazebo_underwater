@@ -22,17 +22,17 @@ namespace gazebo_underwater
 
 
     template <class T> 
-    T GazeboUnderwater::getParameter(std::string _parameter_name, T default_value)
+    T GazeboUnderwater::getParameter(std::string _parameter_name, std::string dimension, T default_value)
     {
         T var = default_value;
         if(sdf->HasElement(_parameter_name.c_str()))
         {
             var = sdf->Get< T >(_parameter_name.c_str());
-            gzmsg << "GazeboUnderwater: " + _parameter_name + ": " << var << std::endl; 
+            gzmsg << "GazeboUnderwater: " + _parameter_name + ": (" << var << ") " + dimension  <<std::endl;
         }        
         else
         {
-            gzmsg << "GazeboUnderwater: " + _parameter_name + ": using default " << default_value << std::endl; 
+            gzmsg << "GazeboUnderwater: " + _parameter_name + ": using default (" << default_value << ") " + dimension << std::endl;
         }
         return var;
     }
@@ -40,8 +40,7 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::loadParameters(void)
     {
-        // If these parameters are not found the simulation must stop. 
-        if(sdf->HasElement("model_name"))   
+        if(sdf->HasElement("model_name"))
         {
             model = world->GetModel( sdf->Get<std::string>("model_name") );  
             gzmsg << "GazeboUnderwater: found model:" << model->GetName() << std::endl;
@@ -49,13 +48,16 @@ namespace gazebo_underwater
             gzmsg << "GazeboUnderwater: model not found. Quit simulation... " << std::endl;
         }
 
-        size = getParameter<math::Vector3>("size",
+        size = getParameter<math::Vector3>("size","meters",
                 math::Vector3(1, 1, 1));
-        centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy",
+        centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.1));
-        waterLevel      = getParameter<double>("water_level", 0.0);
-        viscousDamping  = getParameter<double>("viscous_damping", 0.0);
-        densityOfFluid = getParameter<double>("liquid_density", 1000);
+        fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",
+                math::Vector3(0,0,0));
+        viscousDamping = getParameter<math::Vector3>("viscous_damping","dimensionless",
+                math::Vector3(20,30,50));
+        waterLevel = getParameter<double>("water_level","meters", 2.0);
+        densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1000);
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
@@ -72,8 +74,7 @@ namespace gazebo_underwater
             link->GetWorldPose().rot.RotateVectorReverse(fluidVelocity);
         math::Vector3 velocityDifference =
             link->GetRelativeLinearVel() - fluidVelocityRelative;
-        gzmsg << "viscous friction: " << velocityDifference * viscousDamping << std::endl;
-        link->AddForce(- velocityDifference * viscousDamping);
+        link->AddRelativeForce(- velocityDifference * viscousDamping);
     }
 
 
@@ -83,7 +84,7 @@ namespace gazebo_underwater
             link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);		
 
         // link_buoyancy goes to zero when the model link is above the surface. 
-        // it depends on the volume submersed
+        // it depends on the submersed volume
         double distanceToSurface = waterLevel - cobWorldPosition.z;
 
         double submersedVolume = size.x * size.y * std::min(distanceToSurface, size.z);
@@ -98,5 +99,3 @@ namespace gazebo_underwater
         link->AddForceAtRelativePosition(buoyancyRelative, centerOfBuoyancy);
     }
 }
-
-
