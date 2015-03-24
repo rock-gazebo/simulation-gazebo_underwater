@@ -12,14 +12,15 @@ namespace gazebo_underwater
     {
         private: 
             void updateBegin(gazebo::common::UpdateInfo const& info); 
-            void applyBuoyancy(gazebo::physics::LinkPtr);
-            void applyViscousFriction(gazebo::physics::LinkPtr);
-            void loadParameters(); 
+            void applyBuoyancy();
+            void applyViscousFriction();
+            void loadParameters();
             template <typename T>
             T getParameter(std::string _parameter_name, std::string dimension, T default_value);
 
             gazebo::physics::WorldPtr world;
-            gazebo::physics::ModelPtr model; 
+            gazebo::physics::ModelPtr model;
+            gazebo::physics::LinkPtr link;
 
             sdf::ElementPtr sdf;
             std::vector<gazebo::event::ConnectionPtr> eventHandler;
@@ -33,7 +34,6 @@ namespace gazebo_underwater
 
         public: 
             virtual void Load(gazebo::physics::WorldPtr _parent, sdf::ElementPtr _sdf);
-
     };
 
     GZ_REGISTER_WORLD_PLUGIN(GazeboUnderwater)
