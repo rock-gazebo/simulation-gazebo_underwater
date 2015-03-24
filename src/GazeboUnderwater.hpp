@@ -17,6 +17,7 @@ namespace gazebo_underwater
             void loadParameters();
             template <typename T>
             T getParameter(std::string _parameter_name, std::string dimension, T default_value);
+            double calculateSubmersedVolume(double,double,double,double);
 
             gazebo::physics::WorldPtr world;
             gazebo::physics::ModelPtr model;
@@ -31,6 +32,7 @@ namespace gazebo_underwater
             gazebo::math::Vector3 viscousDamping;
             double waterLevel;       // dimension in meter
             double densityOfFluid;
+            double buoyancy;
 
         public: 
             virtual void Load(gazebo::physics::WorldPtr _parent, sdf::ElementPtr _sdf);

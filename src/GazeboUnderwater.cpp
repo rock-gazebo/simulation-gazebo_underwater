@@ -64,6 +64,8 @@ namespace gazebo_underwater
                 math::Vector3(20,30,50));
         waterLevel = getParameter<double>("water_level","meters", 2.0);
         densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1000);
+        // buoyancy must be the buoyancy when the model is completely submersed
+        buoyancy = getParameter<double>("buoyancy","N",0);
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
@@ -93,23 +95,41 @@ namespace gazebo_underwater
     {
         math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
                 link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
-
         double distanceToSurface = waterLevel - cobPosition.z;
+        math::Vector3 linkBuoyancy;
+
+        // buoyancy value is used, if defined (!= 0)
+        if( abs(buoyancy) )
+        {
+            math::Box linkBoudingBox = link->GetBoundingBox();
+            double submersedVolume = calculateSubmersedVolume(linkBoudingBox.GetXLength(),linkBoudingBox.GetYLength(),
+                    linkBoudingBox.GetZLength(),distanceToSurface);
+            double linkVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() * linkBoudingBox.GetZLength();
+            submersedVolume = submersedVolume/linkVolume;
+            // The buoyancy is proportional no the submersed volume
+            linkBuoyancy = - submersedVolume * abs(buoyancy) * world->GetPhysicsEngine()->GetGravity();
+        }else{
+            double submersedVolume = calculateSubmersedVolume(size.x,size.y,size.z,distanceToSurface);
+           // The buoyancy opposes gravity	=> it is negative.
+            linkBuoyancy = - submersedVolume * densityOfFluid * world->GetPhysicsEngine()->GetGravity();
+        }
+        link->AddForceAtWorldPosition(linkBuoyancy,cobPosition);
+    }
+
+    double GazeboUnderwater::calculateSubmersedVolume(double x, double y, double z,double distanceToSurface)
+    {
         double submersedVolume = 0.0;
         if(distanceToSurface <= 0.0)
         {
             submersedVolume = 0.0;
         }else{
-            if(distanceToSurface <= (size.z)/2.0 )
+            if(distanceToSurface <= (z)/2.0 )
             {
-                submersedVolume = size.x * size.y * ( (size.z)/2.0 + distanceToSurface );
+                submersedVolume = x * y * ( z/2.0 + distanceToSurface );
             }else{
-	            submersedVolume = size.x * size.y * size.z;
+                submersedVolume = x * y * z;
             }
         }
-
-        // The buoyancy opposes gravity	=> it is negative.
-        math::Vector3 linkBuoyancy = - submersedVolume * densityOfFluid * world->GetPhysicsEngine()->GetGravity();
-        link->AddForceAtWorldPosition(linkBuoyancy,cobPosition);
+        return submersedVolume;
     }
 }
