@@ -37,21 +37,43 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::loadParameters(void)
     {
+        // Test if model_name is defined in the world file
         if(sdf->HasElement("model_name"))
         {
+            // Test if model_name name a model loaded in gazebo
             model = world->GetModel( sdf->Get<std::string>("model_name") );  
-            gzmsg << "GazeboUnderwater: found model: " << model->GetName() << std::endl;
+            if(model)
+            {
+                gzmsg << "GazeboUnderwater: model: " << model->GetName() << std::endl;
+            }else{
+                gzmsg << "GazeboUnderwater: model "<< sdf->Get<std::string>("model_name")
+                        << " not found in gazebo world "<< world->GetName() << std::endl;
+                gzmsg << "GazeboUnderwater: exit simulation." << std::endl;
+                shutdown();
+            }
         }else{
-            gzmsg << "GazeboUnderwater: model_name to apply buoyancy not defined !" << std::endl;
+            gzmsg << "GazeboUnderwater: model_name not defined in world file !" << std::endl;
+            gzmsg << "GazeboUnderwater: exit simulation." << std::endl;
+            shutdown();
         }
 
-        link = model->GetLink( sdf->Get<std::string>("link_name") );
-        if( link ){
-            gzmsg << "GazeboUnderwater: found link: " << link->GetName() << std::endl;
-            physics::InertialPtr modelInertia = link->GetInertial();
-            gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << std::endl;
+        if(sdf->HasElement("link_name"))
+        {
+            link = model->GetLink( sdf->Get<std::string>("link_name") );
+            if( link ){
+                gzmsg << "GazeboUnderwater: link: " << link->GetName() << std::endl;
+                physics::InertialPtr modelInertia = link->GetInertial();
+                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << std::endl;
+            }else{
+                gzmsg << "GazeboUnderwater: link " << sdf->Get<std::string>("link_name")
+                        << " not found in model "<< model->GetName() << std::endl;
+                gzmsg << "GazeboUnderwater: exit simulation" << std::endl;
+                shutdown();
+            }
         }else{
-            gzmsg << "GazeboUnderwater: no model link matches link_name !" << std::endl;
+            gzmsg << "GazeboUnderwater: link_name not defined in world file !" << std::endl;
+            gzmsg << "GazeboUnderwater: exit simulation" << std::endl;
+            shutdown();
         }
 
         size = getParameter<math::Vector3>("size","meters",
@@ -70,11 +92,8 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
     {
-        if(link)
-        {
-            applyBuoyancy();
-            applyViscousFriction();
-        }
+        applyBuoyancy();
+        applyViscousFriction();
     }
 
     void GazeboUnderwater::applyViscousFriction()
