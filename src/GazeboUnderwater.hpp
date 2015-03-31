@@ -1,7 +1,6 @@
 #ifndef _GAZEBOUNDERWATER_HPP_
 #define _GAZEBOUNDERWATER_HPP_
 
-#include <gazebo/gazebo.hh>
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/math/Vector3.hh>

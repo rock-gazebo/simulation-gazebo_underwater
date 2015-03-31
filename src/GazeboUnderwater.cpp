@@ -1,4 +1,5 @@
 #include "GazeboUnderwater.hpp"
+#include <gazebo/common/Exception.hh>
 
 using namespace gazebo;
 
@@ -46,15 +47,12 @@ namespace gazebo_underwater
             {
                 gzmsg << "GazeboUnderwater: model: " << model->GetName() << std::endl;
             }else{
-                gzmsg << "GazeboUnderwater: model "<< sdf->Get<std::string>("model_name")
-                        << " not found in gazebo world "<< world->GetName() << std::endl;
-                gzmsg << "GazeboUnderwater: exit simulation." << std::endl;
-                shutdown();
+                std::string msg = "GazeboUnderwater: model " + sdf->Get<std::string>("model_name")
+                        + " not found in gazebo world " + world->GetName();
+                gzthrow(msg);
             }
         }else{
-            gzmsg << "GazeboUnderwater: model_name not defined in world file !" << std::endl;
-            gzmsg << "GazeboUnderwater: exit simulation." << std::endl;
-            shutdown();
+            gzthrow("GazeboUnderwater: model_name not defined in world file !");
         }
 
         if(sdf->HasElement("link_name"))
@@ -65,15 +63,12 @@ namespace gazebo_underwater
                 physics::InertialPtr modelInertia = link->GetInertial();
                 gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << std::endl;
             }else{
-                gzmsg << "GazeboUnderwater: link " << sdf->Get<std::string>("link_name")
-                        << " not found in model "<< model->GetName() << std::endl;
-                gzmsg << "GazeboUnderwater: exit simulation" << std::endl;
-                shutdown();
+                std::string msg = "GazeboUnderwater: link " + sdf->Get<std::string>("link_name")
+                        + " not found in model " + model->GetName();
+                gzthrow(msg);
             }
         }else{
-            gzmsg << "GazeboUnderwater: link_name not defined in world file !" << std::endl;
-            gzmsg << "GazeboUnderwater: exit simulation" << std::endl;
-            shutdown();
+            gzthrow("GazeboUnderwater: link_name not defined in world file !");
         }
 
         waterLevel = getParameter<double>("water_level","meters", 2.0);
