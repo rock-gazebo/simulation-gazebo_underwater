@@ -76,79 +76,89 @@ namespace gazebo_underwater
             shutdown();
         }
 
-        size = getParameter<math::Vector3>("size","meters",
-                math::Vector3(1, 1, 1));
-        centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
-                math::Vector3(0, 0, 0.15));
-        fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",
-                math::Vector3(0,0,0));
-        viscousDamping = getParameter<math::Vector3>("viscous_damping","dimensionless",
-                math::Vector3(20,30,50));
         waterLevel = getParameter<double>("water_level","meters", 2.0);
-        densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1000);
+        fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
+        densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1027);
+        dragCoefficient = getParameter<math::Vector3>("drag_coefficient","dimensionless",
+                math::Vector3(1,1,1));
         // buoyancy must be the buoyancy when the model is completely submersed
         buoyancy = getParameter<double>("buoyancy","N",0);
+        centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
+                math::Vector3(0, 0, 0.15));
+        sideAreas = getParameter<math::Vector3>("side_areas","meter2",
+                math::Vector3(0.5,0.5,0.5));
+        volume = getParameter<double>("volume","meter3",1);
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
     {
         applyBuoyancy();
-        applyViscousFriction();
+        applyViscousDrag();
     }
 
-    void GazeboUnderwater::applyViscousFriction()
+    void GazeboUnderwater::applyViscousDrag()
     {
-        math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
-                link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
+        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
+        double distanceToSurface = waterLevel - cogPosition.z;
+        if(distanceToSurface > 0 )
+        {
+            math::Vector3 velocityDifference = link->GetWorldCoGLinearVel() - fluidVelocity;
+            math::Vector3 viscousDrag = - 0.5 * densityOfFluid * sideAreas * dragCoefficient *
+                     velocityDifference.GetAbs() * velocityDifference;
+            link->AddForceAtWorldPosition(viscousDrag,cogPosition);
 
-        // Calculates dynamic viscous damp
-        math::Vector3 velocityDifference = link->GetWorldCoGPose().rot.RotateVector(
-                link->GetWorldLinearVel() - fluidVelocity);
-        math::Vector3 viscousDrag = - link->GetWorldCoGPose().rot.RotateVector(
-                viscousDamping * velocityDifference );
-        link->AddForceAtWorldPosition(viscousDrag,cobPosition);
+            math::Vector3 angularVelocity = link->GetWorldAngularVel();
+            math::Vector3 angularDrag = - 0.5 * densityOfFluid * sideAreas * dragCoefficient *
+                     angularVelocity.GetAbs() * angularVelocity;
+            link->AddTorque(angularDrag);
+        }
     }
 
 
     void GazeboUnderwater::applyBuoyancy()
     {
-        math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
-                link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
-        double distanceToSurface = waterLevel - cobPosition.z;
+        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
+        double distanceToSurface = waterLevel - cogPosition.z;
         math::Vector3 linkBuoyancy;
 
-        // buoyancy value is used, if defined (!= 0)
+        // buoyancy value is used if defined (!= 0)
         if( abs(buoyancy) )
         {
-            math::Box linkBoudingBox = link->GetBoundingBox();
-            double submersedVolume = calculateSubmersedVolume(linkBoudingBox.GetXLength(),linkBoudingBox.GetYLength(),
-                    linkBoudingBox.GetZLength(),distanceToSurface);
-            double linkVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() * linkBoudingBox.GetZLength();
-            submersedVolume = submersedVolume/linkVolume;
+            double submersedVolume = calculateSubmersedVolume(distanceToSurface);
             // The buoyancy is proportional no the submersed volume
-            linkBuoyancy = - submersedVolume * abs(buoyancy) * world->GetPhysicsEngine()->GetGravity();
+            linkBuoyancy = math::Vector3(0,0,submersedVolume * abs(buoyancy));
         }else{
-            double submersedVolume = calculateSubmersedVolume(size.x,size.y,size.z,distanceToSurface);
-           // The buoyancy opposes gravity	=> it is negative.
-            linkBuoyancy = - submersedVolume * densityOfFluid * world->GetPhysicsEngine()->GetGravity();
+            double submersedVolume = calculateSubmersedVolume(distanceToSurface);
+            // The buoyancy opposes gravity
+            linkBuoyancy = - submersedVolume * volume * densityOfFluid * world->GetPhysicsEngine()->GetGravity();
         }
+
+        math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
+                link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
         link->AddForceAtWorldPosition(linkBuoyancy,cobPosition);
     }
 
-    double GazeboUnderwater::calculateSubmersedVolume(double x, double y, double z,double distanceToSurface)
+    double GazeboUnderwater::calculateSubmersedVolume(double distanceToSurface)
     {
+        math::Box linkBoudingBox = link->GetBoundingBox();
+        double linkVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() * linkBoudingBox.GetZLength();
         double submersedVolume = 0.0;
+
         if(distanceToSurface <= 0.0)
         {
             submersedVolume = 0.0;
         }else{
-            if(distanceToSurface <= (z)/2.0 )
+            if(distanceToSurface <= (linkBoudingBox.GetZLength())/2.0 )
             {
-                submersedVolume = x * y * ( z/2.0 + distanceToSurface );
+                submersedVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() *
+                        ( linkBoudingBox.GetZLength()/2.0 + distanceToSurface );
             }else{
-                submersedVolume = x * y * z;
+                submersedVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() *
+                        linkBoudingBox.GetZLength();
             }
         }
+        // The submersed volume is given in percentage
+        submersedVolume = submersedVolume/linkVolume;
         return submersedVolume;
     }
 }
