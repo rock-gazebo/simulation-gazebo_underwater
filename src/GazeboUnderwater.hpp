@@ -15,7 +15,7 @@ namespace gazebo_underwater
             void applyViscousDrag();
             void loadParameters();
             template <typename T>
-            T getParameter(std::string _parameter_name, std::string dimension, T default_value);
+            T getParameter(std::string parameter_name, std::string dimension, T default_value);
             double calculateSubmersedVolume(double);
 
             gazebo::physics::WorldPtr world;

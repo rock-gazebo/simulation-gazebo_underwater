@@ -21,16 +21,16 @@ namespace gazebo_underwater
     }
 
     template <class T> 
-    T GazeboUnderwater::getParameter(std::string _parameter_name, std::string dimension, T default_value)
+    T GazeboUnderwater::getParameter(std::string parameter_name, std::string dimension, T default_value)
     {
         T var = default_value;
-        if(sdf->HasElement(_parameter_name.c_str()))
+        if(sdf->HasElement(parameter_name.c_str()))
         {
-            var = sdf->Get< T >(_parameter_name.c_str());
-            gzmsg << "GazeboUnderwater: " + _parameter_name + ": (" << var << ") "
+            var = sdf->Get< T >(parameter_name.c_str());
+            gzmsg << "GazeboUnderwater: " + parameter_name + ": (" << var << ") "
                     + dimension  << std::endl;
         }else{
-            gzmsg << "GazeboUnderwater: " + _parameter_name + ": using default ("
+            gzmsg << "GazeboUnderwater: " + parameter_name + ": using default ("
                     << default_value << ") " + dimension << std::endl;
         }
         return var;
@@ -71,7 +71,7 @@ namespace gazebo_underwater
             gzthrow("GazeboUnderwater: link_name not defined in world file !");
         }
 
-        waterLevel = getParameter<double>("water_level","meters", 2.0);
+        waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
         densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1027);
         dragCoefficient = getParameter<math::Vector3>("drag_coefficient","dimensionless",
