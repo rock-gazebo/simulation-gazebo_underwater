@@ -80,9 +80,16 @@ namespace gazebo_underwater
         buoyancy = getParameter<double>("buoyancy","N",0);
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
-        sideAreas = getParameter<math::Vector3>("side_areas","meter2",
-                math::Vector3(0.5,0.5,0.5));
         volume = getParameter<double>("volume","meter3",1);
+
+        // If side_areas are not given in world file we use the bouding box dimensions to calculate it
+        math::Box linkBoudingBox = link->GetBoundingBox();
+        sideAreas = getParameter<math::Vector3>("side_areas","meter2",
+                math::Vector3(linkBoudingBox.GetYLength() * linkBoudingBox.GetZLength(),
+                    linkBoudingBox.GetXLength() * linkBoudingBox.GetZLength(),
+                        linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength()));
+        if( sideAreas == math::Vector3(0.0,0.0,0.0) )
+            gzthrow("GazeboUnderwater: side_areas cannot be (0.0, 0.0, 0.0).");
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
@@ -95,7 +102,7 @@ namespace gazebo_underwater
     {
         math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
         double distanceToSurface = waterLevel - cogPosition.z;
-        if(distanceToSurface > 0 )
+        if( distanceToSurface > 0 )
         {
             math::Vector3 velocityDifference = link->GetWorldCoGLinearVel() - fluidVelocity;
             math::Vector3 viscousDrag = - 0.5 * densityOfFluid * sideAreas * dragCoefficient *
