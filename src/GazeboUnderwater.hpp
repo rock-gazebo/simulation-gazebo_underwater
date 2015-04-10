@@ -1,7 +1,6 @@
 #ifndef _GAZEBOUNDERWATER_HPP_
 #define _GAZEBOUNDERWATER_HPP_
 
-#include <gazebo/gazebo.hh>
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/math/Vector3.hh>
@@ -12,28 +11,31 @@ namespace gazebo_underwater
     {
         private: 
             void updateBegin(gazebo::common::UpdateInfo const& info); 
-            void applyBuoyancy(gazebo::physics::LinkPtr);
-            void applyViscousFriction(gazebo::physics::LinkPtr);
-            void loadParameters(); 
+            void applyBuoyancy();
+            void applyViscousDrag();
+            void loadParameters();
             template <typename T>
-            T getParameter(std::string _parameter_name, std::string dimension, T default_value);
+            T getParameter(std::string parameter_name, std::string dimension, T default_value);
+            double calculateSubmersedVolume(double);
 
             gazebo::physics::WorldPtr world;
-            gazebo::physics::ModelPtr model; 
+            gazebo::physics::ModelPtr model;
+            gazebo::physics::LinkPtr link;
 
             sdf::ElementPtr sdf;
             std::vector<gazebo::event::ConnectionPtr> eventHandler;
 
-            gazebo::math::Vector3 size;
             gazebo::math::Vector3 centerOfBuoyancy;
             gazebo::math::Vector3 fluidVelocity;
-            gazebo::math::Vector3 viscousDamping;
+            gazebo::math::Vector3 dragCoefficient;
+            gazebo::math::Vector3 sideAreas;
+            double volume;
             double waterLevel;       // dimension in meter
             double densityOfFluid;
+            double buoyancy;
 
         public: 
             virtual void Load(gazebo::physics::WorldPtr _parent, sdf::ElementPtr _sdf);
-
     };
 
     GZ_REGISTER_WORLD_PLUGIN(GazeboUnderwater)
