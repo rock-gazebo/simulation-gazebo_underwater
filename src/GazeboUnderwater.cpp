@@ -71,23 +71,24 @@ namespace gazebo_underwater
             gzthrow("GazeboUnderwater: link_name not defined in world file !");
         }
 
+        math::Box linkBoudingBox = link->GetBoundingBox();
+
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
         densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1027);
         dragCoefficient = getParameter<math::Vector3>("drag_coefficient","dimensionless",
                 math::Vector3(1,1,1));
+        volume = getParameter<double>("volume","meter3",linkBoudingBox.GetXLength()*linkBoudingBox.GetYLength()*linkBoudingBox.GetZLength());
         // buoyancy must be the buoyancy when the model is completely submersed
-        buoyancy = getParameter<double>("buoyancy","N",0);
+        buoyancy = getParameter<double>("buoyancy","N", volume * densityOfFluid * world->GetPhysicsEngine()->GetGravity().GetLength());
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
-        volume = getParameter<double>("volume","meter3",1);
 
         // If side_areas are not given in world file we use the bouding box dimensions to calculate it
-        math::Box linkBoudingBox = link->GetBoundingBox();
         sideAreas = getParameter<math::Vector3>("side_areas","meter2",
                 math::Vector3(linkBoudingBox.GetYLength() * linkBoudingBox.GetZLength(),
                     linkBoudingBox.GetXLength() * linkBoudingBox.GetZLength(),
-                        linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength()));
+                    linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength()));
         if( sideAreas == math::Vector3(0.0,0.0,0.0) )
             gzthrow("GazeboUnderwater: side_areas cannot be (0.0, 0.0, 0.0).");
     }
