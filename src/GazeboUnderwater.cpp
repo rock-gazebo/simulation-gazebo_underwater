@@ -43,13 +43,16 @@ namespace gazebo_underwater
         {
             // Test if model_name name a model loaded in gazebo
             model = world->GetModel( sdf->Get<std::string>("model_name") );  
-            if(model)
+            if(!model)
             {
-                gzmsg << "GazeboUnderwater: model: " << model->GetName() << std::endl;
-            }else{
-                std::string msg = "GazeboUnderwater: model " + sdf->Get<std::string>("model_name")
-                        + " not found in gazebo world " + world->GetName();
+                std::string msg = "GazeboUnderwater: model " + sdf->Get<std::string>("model_name") + " not found in gazebo world " + world->GetName();
+                std::string available = " GazeboUnderwater: known models are";
+                gazebo::physics::Model_V models = world->GetModels();
+                for (int i = 0; i < models.size(); ++i)
+                    available += " " + models[i]->GetName();
                 gzthrow(msg);
+            }else{
+                gzmsg << "GazeboUnderwater: model: " << model->GetName() << std::endl;
             }
         }else{
             gzthrow("GazeboUnderwater: model_name not defined in world file !");
@@ -58,14 +61,14 @@ namespace gazebo_underwater
         if(sdf->HasElement("link_name"))
         {
             link = model->GetLink( sdf->Get<std::string>("link_name") );
-            if( link ){
-                gzmsg << "GazeboUnderwater: link: " << link->GetName() << std::endl;
-                physics::InertialPtr modelInertia = link->GetInertial();
-                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << std::endl;
-            }else{
+            if (!link) {
                 std::string msg = "GazeboUnderwater: link " + sdf->Get<std::string>("link_name")
                         + " not found in model " + model->GetName();
                 gzthrow(msg);
+            }else{
+                gzmsg << "GazeboUnderwater: link: " << link->GetName() << std::endl;
+                physics::InertialPtr modelInertia = link->GetInertial();
+                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << std::endl;
             }
         }else{
             gzthrow("GazeboUnderwater: link_name not defined in world file !");
