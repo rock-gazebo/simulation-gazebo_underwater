@@ -45,11 +45,13 @@ namespace gazebo_underwater
             model = world->GetModel( sdf->Get<std::string>("model_name") );  
             if(!model)
             {
-                std::string msg = "GazeboUnderwater: model " + sdf->Get<std::string>("model_name") + " not found in gazebo world " + world->GetName();
-                std::string available = " GazeboUnderwater: known models are";
+                std::string msg ="GazeboUnderwater: model " + sdf->Get<std::string>("model_name") +
+                        " not found in gazebo world: " + world->GetName() + ". ";
+                std::string available = "Known models are:";
                 gazebo::physics::Model_V models = world->GetModels();
                 for (int i = 0; i < models.size(); ++i)
                     available += " " + models[i]->GetName();
+                msg += available;
                 gzthrow(msg);
             }else{
                 gzmsg << "GazeboUnderwater: model: " << model->GetName() << std::endl;
@@ -127,17 +129,9 @@ namespace gazebo_underwater
         double distanceToSurface = waterLevel - cogPosition.z;
         math::Vector3 linkBuoyancy;
 
-        // buoyancy value is used if defined (!= 0)
-        if( abs(buoyancy) )
-        {
-            double submersedVolume = calculateSubmersedVolume(distanceToSurface);
-            // The buoyancy is proportional no the submersed volume
-            linkBuoyancy = math::Vector3(0,0,submersedVolume * abs(buoyancy));
-        }else{
-            double submersedVolume = calculateSubmersedVolume(distanceToSurface);
-            // The buoyancy opposes gravity
-            linkBuoyancy = - submersedVolume * volume * densityOfFluid * world->GetPhysicsEngine()->GetGravity();
-        }
+        double submersedVolume = calculateSubmersedVolume(distanceToSurface);
+        // The buoyancy is proportional no the submersed volume
+        linkBuoyancy = math::Vector3(0,0,submersedVolume * abs(buoyancy));
 
         math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
                 link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
