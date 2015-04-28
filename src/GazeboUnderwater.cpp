@@ -1,13 +1,14 @@
 #include "GazeboUnderwater.hpp"
 #include <gazebo/common/Exception.hh>
 
+using namespace std;
 using namespace gazebo;
 
 namespace gazebo_underwater
 {
     void GazeboUnderwater::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
     {
-        gzmsg << "GazeboUnderwater: Loading underwater environment." << std::endl;
+        gzmsg << "GazeboUnderwater: Loading underwater environment." << endl;
 
         world = _world;
         sdf = _sdf;
@@ -21,17 +22,17 @@ namespace gazebo_underwater
     }
 
     template <class T> 
-    T GazeboUnderwater::getParameter(std::string parameter_name, std::string dimension, T default_value)
+    T GazeboUnderwater::getParameter(string parameter_name, string dimension, T default_value)
     {
         T var = default_value;
         if(sdf->HasElement(parameter_name.c_str()))
         {
             var = sdf->Get< T >(parameter_name.c_str());
             gzmsg << "GazeboUnderwater: " + parameter_name + ": (" << var << ") "
-                    + dimension  << std::endl;
+                    + dimension  << endl;
         }else{
             gzmsg << "GazeboUnderwater: " + parameter_name + ": using default ("
-                    << default_value << ") " + dimension << std::endl;
+                    << default_value << ") " + dimension << endl;
         }
         return var;
     }
@@ -42,19 +43,19 @@ namespace gazebo_underwater
         if(sdf->HasElement("model_name"))
         {
             // Test if model_name name a model loaded in gazebo
-            model = world->GetModel( sdf->Get<std::string>("model_name") );  
+            model = world->GetModel( sdf->Get<string>("model_name") );
             if(!model)
             {
-                std::string msg ="GazeboUnderwater: model " + sdf->Get<std::string>("model_name") +
+                string msg ="GazeboUnderwater: model " + sdf->Get<string>("model_name") +
                         " not found in gazebo world: " + world->GetName() + ". ";
-                std::string available = "Known models are:";
+                string available = "Known models are:";
                 gazebo::physics::Model_V models = world->GetModels();
-                for (int i = 0; i < models.size(); ++i)
+                for (size_t i = 0; i < models.size(); ++i)
                     available += " " + models[i]->GetName();
                 msg += available;
                 gzthrow(msg);
             }else{
-                gzmsg << "GazeboUnderwater: model: " << model->GetName() << std::endl;
+                gzmsg << "GazeboUnderwater: model: " << model->GetName() << endl;
             }
         }else{
             gzthrow("GazeboUnderwater: model_name not defined in world file !");
@@ -62,15 +63,15 @@ namespace gazebo_underwater
 
         if(sdf->HasElement("link_name"))
         {
-            link = model->GetLink( sdf->Get<std::string>("link_name") );
+            link = model->GetLink( sdf->Get<string>("link_name") );
             if (!link) {
-                std::string msg = "GazeboUnderwater: link " + sdf->Get<std::string>("link_name")
+                string msg = "GazeboUnderwater: link " + sdf->Get<string>("link_name")
                         + " not found in model " + model->GetName();
                 gzthrow(msg);
             }else{
-                gzmsg << "GazeboUnderwater: link: " << link->GetName() << std::endl;
+                gzmsg << "GazeboUnderwater: link: " << link->GetName() << endl;
                 physics::InertialPtr modelInertia = link->GetInertial();
-                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << std::endl;
+                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << endl;
             }
         }else{
             gzthrow("GazeboUnderwater: link_name not defined in world file !");
