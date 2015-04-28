@@ -1,13 +1,14 @@
 #include "GazeboUnderwater.hpp"
 #include <gazebo/common/Exception.hh>
 
+using namespace std;
 using namespace gazebo;
 
 namespace gazebo_underwater
 {
     void GazeboUnderwater::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
     {
-        gzmsg << "GazeboUnderwater: Loading underwater environment." << std::endl;
+        gzmsg << "GazeboUnderwater: Loading underwater environment." << endl;
 
         world = _world;
         sdf = _sdf;
@@ -21,17 +22,17 @@ namespace gazebo_underwater
     }
 
     template <class T> 
-    T GazeboUnderwater::getParameter(std::string parameter_name, std::string dimension, T default_value)
+    T GazeboUnderwater::getParameter(string parameter_name, string dimension, T default_value)
     {
         T var = default_value;
         if(sdf->HasElement(parameter_name.c_str()))
         {
             var = sdf->Get< T >(parameter_name.c_str());
             gzmsg << "GazeboUnderwater: " + parameter_name + ": (" << var << ") "
-                    + dimension  << std::endl;
+                    + dimension  << endl;
         }else{
             gzmsg << "GazeboUnderwater: " + parameter_name + ": using default ("
-                    << default_value << ") " + dimension << std::endl;
+                    << default_value << ") " + dimension << endl;
         }
         return var;
     }
@@ -42,14 +43,19 @@ namespace gazebo_underwater
         if(sdf->HasElement("model_name"))
         {
             // Test if model_name name a model loaded in gazebo
-            model = world->GetModel( sdf->Get<std::string>("model_name") );  
-            if(model)
+            model = world->GetModel( sdf->Get<string>("model_name") );
+            if(!model)
             {
-                gzmsg << "GazeboUnderwater: model: " << model->GetName() << std::endl;
-            }else{
-                std::string msg = "GazeboUnderwater: model " + sdf->Get<std::string>("model_name")
-                        + " not found in gazebo world " + world->GetName();
+                string msg ="GazeboUnderwater: model " + sdf->Get<string>("model_name") +
+                        " not found in gazebo world: " + world->GetName() + ". ";
+                string available = "Known models are:";
+                gazebo::physics::Model_V models = world->GetModels();
+                for (size_t i = 0; i < models.size(); ++i)
+                    available += " " + models[i]->GetName();
+                msg += available;
                 gzthrow(msg);
+            }else{
+                gzmsg << "GazeboUnderwater: model: " << model->GetName() << endl;
             }
         }else{
             gzthrow("GazeboUnderwater: model_name not defined in world file !");
@@ -57,37 +63,38 @@ namespace gazebo_underwater
 
         if(sdf->HasElement("link_name"))
         {
-            link = model->GetLink( sdf->Get<std::string>("link_name") );
-            if( link ){
-                gzmsg << "GazeboUnderwater: link: " << link->GetName() << std::endl;
-                physics::InertialPtr modelInertia = link->GetInertial();
-                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << std::endl;
-            }else{
-                std::string msg = "GazeboUnderwater: link " + sdf->Get<std::string>("link_name")
+            link = model->GetLink( sdf->Get<string>("link_name") );
+            if (!link) {
+                string msg = "GazeboUnderwater: link " + sdf->Get<string>("link_name")
                         + " not found in model " + model->GetName();
                 gzthrow(msg);
+            }else{
+                gzmsg << "GazeboUnderwater: link: " << link->GetName() << endl;
+                physics::InertialPtr modelInertia = link->GetInertial();
+                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << endl;
             }
         }else{
             gzthrow("GazeboUnderwater: link_name not defined in world file !");
         }
+
+        math::Box linkBoudingBox = link->GetBoundingBox();
 
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
         densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1027);
         dragCoefficient = getParameter<math::Vector3>("drag_coefficient","dimensionless",
                 math::Vector3(1,1,1));
+        volume = getParameter<double>("volume","meter3",linkBoudingBox.GetXLength()*linkBoudingBox.GetYLength()*linkBoudingBox.GetZLength());
         // buoyancy must be the buoyancy when the model is completely submersed
-        buoyancy = getParameter<double>("buoyancy","N",0);
+        buoyancy = getParameter<double>("buoyancy","N", volume * densityOfFluid * world->GetPhysicsEngine()->GetGravity().GetLength());
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
-        volume = getParameter<double>("volume","meter3",1);
 
         // If side_areas are not given in world file we use the bouding box dimensions to calculate it
-        math::Box linkBoudingBox = link->GetBoundingBox();
         sideAreas = getParameter<math::Vector3>("side_areas","meter2",
                 math::Vector3(linkBoudingBox.GetYLength() * linkBoudingBox.GetZLength(),
                     linkBoudingBox.GetXLength() * linkBoudingBox.GetZLength(),
-                        linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength()));
+                    linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength()));
         if( sideAreas == math::Vector3(0.0,0.0,0.0) )
             gzthrow("GazeboUnderwater: side_areas cannot be (0.0, 0.0, 0.0).");
     }
@@ -123,17 +130,9 @@ namespace gazebo_underwater
         double distanceToSurface = waterLevel - cogPosition.z;
         math::Vector3 linkBuoyancy;
 
-        // buoyancy value is used if defined (!= 0)
-        if( abs(buoyancy) )
-        {
-            double submersedVolume = calculateSubmersedVolume(distanceToSurface);
-            // The buoyancy is proportional no the submersed volume
-            linkBuoyancy = math::Vector3(0,0,submersedVolume * abs(buoyancy));
-        }else{
-            double submersedVolume = calculateSubmersedVolume(distanceToSurface);
-            // The buoyancy opposes gravity
-            linkBuoyancy = - submersedVolume * volume * densityOfFluid * world->GetPhysicsEngine()->GetGravity();
-        }
+        double submersedVolume = calculateSubmersedVolume(distanceToSurface);
+        // The buoyancy is proportional no the submersed volume
+        linkBuoyancy = math::Vector3(0,0,submersedVolume * abs(buoyancy));
 
         math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
                 link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
