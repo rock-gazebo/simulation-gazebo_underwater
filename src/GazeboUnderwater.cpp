@@ -71,7 +71,9 @@ namespace gazebo_underwater
             }else{
                 gzmsg << "GazeboUnderwater: link: " << link->GetName() << endl;
                 physics::InertialPtr modelInertia = link->GetInertial();
-                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << endl;
+                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << " kg" << endl;
+                gzmsg << "GazeboUnderwater: link weight: " <<
+                    - modelInertia->GetMass() * world->GetPhysicsEngine()->GetGravity().z << " N" << endl;
             }
         }else{
             gzthrow("GazeboUnderwater: link_name not defined in world file !");
@@ -82,8 +84,10 @@ namespace gazebo_underwater
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
         densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1027);
-        dragCoefficient = getParameter<math::Vector3>("drag_coefficient","dimensionless",
+        linearDragCoefficients = getParameter<math::Vector3>("linear_drag_coefficients","dimensionless",
                 math::Vector3(1,1,1));
+        quadraticDragCoefficients = getParameter<math::Vector3>("quadratic_drag_coefficients","dimensionless",
+                math::Vector3(.5,.5,.5));
         volume = getParameter<double>("volume","meter3",linkBoudingBox.GetXLength()*linkBoudingBox.GetYLength()*linkBoudingBox.GetZLength());
         // buoyancy must be the buoyancy when the model is completely submersed
         buoyancy = getParameter<double>("buoyancy","N", volume * densityOfFluid * world->GetPhysicsEngine()->GetGravity().GetLength());
@@ -112,14 +116,23 @@ namespace gazebo_underwater
         if( distanceToSurface > 0 )
         {
             math::Vector3 velocityDifference = link->GetWorldCoGLinearVel() - fluidVelocity;
-            math::Vector3 viscousDrag = - 0.5 * densityOfFluid * sideAreas * dragCoefficient *
-                     velocityDifference.GetAbs() * velocityDifference;
-            link->AddForceAtWorldPosition(viscousDrag,cogPosition);
-
             math::Vector3 angularVelocity = link->GetWorldAngularVel();
-            math::Vector3 angularDrag = - 0.5 * densityOfFluid * sideAreas * dragCoefficient *
+
+            // Linear drag
+            math::Vector3 linearDrag = - linearDragCoefficients * velocityDifference;
+            link->AddForceAtWorldPosition(linearDrag,cogPosition);
+
+            math::Vector3 linearAngularDrag = - linearDragCoefficients * angularVelocity;
+            link->AddTorque(linearAngularDrag);
+
+            // Quadratic drag
+            math::Vector3 quadraticDrag = - 0.5 * densityOfFluid * sideAreas * quadraticDragCoefficients *
+                     velocityDifference.GetAbs() * velocityDifference;
+            link->AddForceAtWorldPosition(quadraticDrag,cogPosition);
+
+            math::Vector3 quadraticAngularDrag = - 0.5 * densityOfFluid * sideAreas * quadraticDragCoefficients *
                      angularVelocity.GetAbs() * angularVelocity;
-            link->AddTorque(angularDrag);
+            link->AddTorque(quadraticAngularDrag);
         }
     }
 
