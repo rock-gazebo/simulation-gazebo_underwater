@@ -28,14 +28,18 @@ namespace gazebo_underwater
             gazebo::math::Vector3 centerOfBuoyancy;
             gazebo::math::Vector3 fluidVelocity;
             gazebo::math::Vector3 linearDragCoefficients;
+            gazebo::math::Vector3 quadraticDampCoefficients;
             gazebo::math::Vector3 quadraticDragCoefficients;
             gazebo::math::Vector3 sideAreas;
             double volume;
             double waterLevel;       // dimension in meter
             double densityOfFluid;
             double buoyancy;
+            bool use_quadratic_damp;
 
-        public: 
+        public:
+            GazeboUnderwater();
+            ~GazeboUnderwater();
             virtual void Load(gazebo::physics::WorldPtr _parent, sdf::ElementPtr _sdf);
     };
 
