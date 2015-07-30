@@ -12,7 +12,7 @@ namespace gazebo_underwater
         private: 
             void updateBegin(gazebo::common::UpdateInfo const& info); 
             void applyBuoyancy();
-            void applyViscousDrag();
+            void applyViscousDamp();
             void loadParameters();
             template <typename T>
             T getParameter(std::string parameter_name, std::string dimension, T default_value);
@@ -27,15 +27,13 @@ namespace gazebo_underwater
 
             gazebo::math::Vector3 centerOfBuoyancy;
             gazebo::math::Vector3 fluidVelocity;
-            gazebo::math::Vector3 linearDragCoefficients;
+            gazebo::math::Vector3 linearDampCoefficients;
             gazebo::math::Vector3 quadraticDampCoefficients;
-            gazebo::math::Vector3 quadraticDragCoefficients;
             gazebo::math::Vector3 sideAreas;
             double volume;
             double waterLevel;       // dimension in meter
             double densityOfFluid;
             double buoyancy;
-            bool use_quadratic_damp;
 
         public:
             GazeboUnderwater();
