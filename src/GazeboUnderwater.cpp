@@ -131,40 +131,49 @@ namespace gazebo_underwater
         double distanceToSurface = waterLevel - cogPosition.z;
         if( distanceToSurface > 0 )
         {
-            math::Vector3 velocityDifference = link->GetWorldCoGLinearVel() - fluidVelocity;
+            // Calculates the difference between the model and fluid velocity relative to the world frame
+            math::Vector3 velocityDifference = link->GetWorldLinearVel() - fluidVelocity;
             math::Vector3 angularVelocity = link->GetWorldAngularVel();
 
-            // Linear drag
-            math::Vector3 linearDrag = - linearDragCoefficients * velocityDifference;
-            link->AddForceAtWorldPosition(linearDrag,cogPosition);
+            // Get model quaternion and rotate velocity difference to get the velocity relative to the
+            // model frame. This velocity is necessary to calculate the drag forces.
+            // The drag forces have to be transformed to the world frame (with RotateVectorReverse),
+            // before being applied to the model.
+            // mf = model frame
+            math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
+            math::Vector3 mfVelocity = modelQuaternion.RotateVector( velocityDifference );
+            math::Vector3 mfAngularVelocity = modelQuaternion.RotateVector( angularVelocity );
 
-            math::Vector3 linearAngularDrag = - linearDragCoefficients * angularVelocity;
-            link->AddTorque(linearAngularDrag);
+            // Linear drag
+            math::Vector3 linearDrag = - linearDragCoefficients * mfVelocity;
+            link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(linearDrag),cogPosition);
+
+            math::Vector3 linearAngularDrag = - linearDragCoefficients * mfAngularVelocity;
+            link->AddTorque( modelQuaternion.RotateVectorReverse(linearAngularDrag) );
 
             // Quadratic drag
             if(use_quadratic_damp)
             {
                 // damp coefficients
                 math::Vector3 quadraticDrag = - quadraticDampCoefficients *
-                         velocityDifference.GetAbs() * velocityDifference;
-                link->AddForceAtWorldPosition(quadraticDrag,cogPosition);
+                         mfVelocity.GetAbs() * mfVelocity;
+                link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(quadraticDrag),cogPosition);
 
                 math::Vector3 quadraticAngularDrag = - quadraticDampCoefficients *
-                         angularVelocity.GetAbs() * angularVelocity;
-                link->AddTorque(quadraticAngularDrag);
+                         mfAngularVelocity.GetAbs() * mfAngularVelocity;
+                link->AddTorque( modelQuaternion.RotateVectorReverse(quadraticAngularDrag) );
             }else{
                 // drag coefficients
                 math::Vector3 quadraticDrag = - 0.5 * densityOfFluid * sideAreas * quadraticDragCoefficients *
-                         velocityDifference.GetAbs() * velocityDifference;
-                link->AddForceAtWorldPosition(quadraticDrag,cogPosition);
+                         mfVelocity.GetAbs() * mfVelocity;
+                link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(quadraticDrag),cogPosition);
 
                 math::Vector3 quadraticAngularDrag = - 0.5 * densityOfFluid * sideAreas * quadraticDragCoefficients *
-                         angularVelocity.GetAbs() * angularVelocity;
-                link->AddTorque(quadraticAngularDrag);
+                         mfAngularVelocity.GetAbs() * mfAngularVelocity;
+                link->AddTorque( modelQuaternion.RotateVectorReverse(quadraticAngularDrag) );
             }
         }
     }
-
 
     void GazeboUnderwater::applyBuoyancy()
     {
@@ -180,7 +189,6 @@ namespace gazebo_underwater
                 link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
         link->AddForceAtWorldPosition(linkBuoyancy,cobPosition);
     }
-
 
     double GazeboUnderwater::calculateSubmersedVolume(double distanceToSurface)
     {
