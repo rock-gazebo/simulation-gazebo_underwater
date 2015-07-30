@@ -93,9 +93,13 @@ namespace gazebo_underwater
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
         densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1027);
         linearDampCoefficients = getParameter<math::Vector3>("linear_damp_coefficients","N.s/m",
-                math::Vector3(100,100,100));
+                math::Vector3(50,50,50));
+        linearDampAngleCoefficients = getParameter<math::Vector3>("linear_damp_angle_coefficients","N.s",
+                math::Vector3(45,45,45));
         quadraticDampCoefficients = getParameter<math::Vector3>("quadratic_damp_coefficients","N.s2/m2",
-                math::Vector3(75,75,75));
+                math::Vector3(40,40,40));
+        quadraticDampAngleCoefficients = getParameter<math::Vector3>("quadratic_damp_angle_coefficients","N.s2/m",
+                math::Vector3(35,35,35));
         volume = getParameter<double>("volume","meter3",linkBoudingBox.GetXLength()*linkBoudingBox.GetYLength()*linkBoudingBox.GetZLength());
         // buoyancy must be the buoyancy when the model is completely submersed
         buoyancy = getParameter<double>("buoyancy","N", volume * densityOfFluid * world->GetPhysicsEngine()->GetGravity().GetLength());
@@ -140,7 +144,7 @@ namespace gazebo_underwater
             math::Vector3 linearDamp = - linearDampCoefficients * mfVelocity;
             link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(linearDamp),cogPosition);
 
-            math::Vector3 linearAngularDamp = - linearDampCoefficients * mfAngularVelocity;
+            math::Vector3 linearAngularDamp = - linearDampAngleCoefficients * mfAngularVelocity;
             link->AddTorque( modelQuaternion.RotateVectorReverse(linearAngularDamp) );
 
             // Quadratic damp
@@ -148,7 +152,7 @@ namespace gazebo_underwater
                      mfVelocity.GetAbs() * mfVelocity;
             link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(quadraticDamp),cogPosition);
 
-            math::Vector3 quadraticAngularDamp = - quadraticDampCoefficients *
+            math::Vector3 quadraticAngularDamp = - quadraticDampAngleCoefficients *
                      mfAngularVelocity.GetAbs() * mfAngularVelocity;
             link->AddTorque( modelQuaternion.RotateVectorReverse(quadraticAngularDamp) );
         }
