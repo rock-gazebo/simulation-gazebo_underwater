@@ -29,7 +29,7 @@ namespace gazebo_underwater
                     boost::bind(&GazeboUnderwater::updateBegin,this, _1)));
     }
 
-    template <class T> 
+    template <class T>
     T GazeboUnderwater::getParameter(string parameter_name, string dimension, T default_value)
     {
         T var = default_value;
@@ -91,7 +91,6 @@ namespace gazebo_underwater
 
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
-        densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1027);
         linearDampCoefficients = getParameter<math::Vector3>("linear_damp_coefficients","N.s/m",
                 math::Vector3(50,50,50));
         linearDampAngleCoefficients = getParameter<math::Vector3>("linear_damp_angle_coefficients","N.s",
@@ -100,9 +99,9 @@ namespace gazebo_underwater
                 math::Vector3(40,40,40));
         quadraticDampAngleCoefficients = getParameter<math::Vector3>("quadratic_damp_angle_coefficients","N.s2/m",
                 math::Vector3(35,35,35));
-        volume = getParameter<double>("volume","meter3",linkBoudingBox.GetXLength()*linkBoudingBox.GetYLength()*linkBoudingBox.GetZLength());
-        // buoyancy must be the buoyancy when the model is completely submersed
-        buoyancy = getParameter<double>("buoyancy","N", volume * densityOfFluid * world->GetPhysicsEngine()->GetGravity().GetLength());
+        // buoyancy must be the difference between the buoyancy when the model is completely submersed and the model weight
+        buoyancy = getParameter<double>("buoyancy","N", 100);
+        buoyancy = abs(buoyancy) + link->GetInertial()->GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength();
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
 
@@ -164,9 +163,9 @@ namespace gazebo_underwater
         double distanceToSurface = waterLevel - cogPosition.z;
         math::Vector3 linkBuoyancy;
 
-        double submersedVolume = calculateSubmersedVolume(distanceToSurface);
         // The buoyancy is proportional no the submersed volume
-        linkBuoyancy = math::Vector3(0,0,submersedVolume * abs(buoyancy));
+        double submersedVolume = calculateSubmersedVolume(distanceToSurface);
+        linkBuoyancy = math::Vector3(0,0,submersedVolume * buoyancy );
 
         math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
                 link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
