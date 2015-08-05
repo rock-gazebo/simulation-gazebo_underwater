@@ -100,7 +100,7 @@ namespace gazebo_underwater
         quadraticDampAngleCoefficients = getParameter<math::Vector3>("quadratic_damp_angle_coefficients","N.s2/m",
                 math::Vector3(35,35,35));
         // buoyancy must be the difference between the buoyancy when the model is completely submersed and the model weight
-        buoyancy = getParameter<double>("buoyancy","N", 100);
+        buoyancy = getParameter<double>("buoyancy","N", 5);
         buoyancy = abs(buoyancy) + link->GetInertial()->GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength();
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
