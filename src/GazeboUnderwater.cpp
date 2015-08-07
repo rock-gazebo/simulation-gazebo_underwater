@@ -6,6 +6,14 @@ using namespace gazebo;
 
 namespace gazebo_underwater
 {
+    GazeboUnderwater::GazeboUnderwater()
+    {
+    }
+
+    GazeboUnderwater::~GazeboUnderwater()
+    {
+    }
+
     void GazeboUnderwater::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
     {
         gzmsg << "GazeboUnderwater: Loading underwater environment." << endl;
@@ -21,7 +29,7 @@ namespace gazebo_underwater
                     boost::bind(&GazeboUnderwater::updateBegin,this, _1)));
     }
 
-    template <class T> 
+    template <class T>
     T GazeboUnderwater::getParameter(string parameter_name, string dimension, T default_value)
     {
         T var = default_value;
@@ -71,7 +79,9 @@ namespace gazebo_underwater
             }else{
                 gzmsg << "GazeboUnderwater: link: " << link->GetName() << endl;
                 physics::InertialPtr modelInertia = link->GetInertial();
-                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << endl;
+                gzmsg << "GazeboUnderwater: link mass: " << modelInertia->GetMass() << " kg" << endl;
+                gzmsg << "GazeboUnderwater: link weight: " <<
+                    - modelInertia->GetMass() * world->GetPhysicsEngine()->GetGravity().z << " N" << endl;
             }
         }else{
             gzthrow("GazeboUnderwater: link_name not defined in world file !");
@@ -81,12 +91,17 @@ namespace gazebo_underwater
 
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
-        densityOfFluid = getParameter<double>("fluid_density","kg/m3", 1027);
-        dragCoefficient = getParameter<math::Vector3>("drag_coefficient","dimensionless",
-                math::Vector3(1,1,1));
-        volume = getParameter<double>("volume","meter3",linkBoudingBox.GetXLength()*linkBoudingBox.GetYLength()*linkBoudingBox.GetZLength());
-        // buoyancy must be the buoyancy when the model is completely submersed
-        buoyancy = getParameter<double>("buoyancy","N", volume * densityOfFluid * world->GetPhysicsEngine()->GetGravity().GetLength());
+        linearDampCoefficients = getParameter<math::Vector3>("linear_damp_coefficients","N.s/m",
+                math::Vector3(50,50,50));
+        linearDampAngleCoefficients = getParameter<math::Vector3>("linear_damp_angle_coefficients","N.s",
+                math::Vector3(45,45,45));
+        quadraticDampCoefficients = getParameter<math::Vector3>("quadratic_damp_coefficients","N.s2/m2",
+                math::Vector3(40,40,40));
+        quadraticDampAngleCoefficients = getParameter<math::Vector3>("quadratic_damp_angle_coefficients","N.s2/m",
+                math::Vector3(35,35,35));
+        // buoyancy must be the difference between the buoyancy when the model is completely submersed and the model weight
+        buoyancy = getParameter<double>("buoyancy","N", 5);
+        buoyancy = abs(buoyancy) + link->GetInertial()->GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength();
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
 
@@ -102,27 +117,45 @@ namespace gazebo_underwater
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
     {
         applyBuoyancy();
-        applyViscousDrag();
+        applyViscousDamp();
     }
 
-    void GazeboUnderwater::applyViscousDrag()
+    void GazeboUnderwater::applyViscousDamp()
     {
         math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
         double distanceToSurface = waterLevel - cogPosition.z;
         if( distanceToSurface > 0 )
         {
-            math::Vector3 velocityDifference = link->GetWorldCoGLinearVel() - fluidVelocity;
-            math::Vector3 viscousDrag = - 0.5 * densityOfFluid * sideAreas * dragCoefficient *
-                     velocityDifference.GetAbs() * velocityDifference;
-            link->AddForceAtWorldPosition(viscousDrag,cogPosition);
-
+            // Calculates the difference between the model and fluid velocity relative to the world frame
+            math::Vector3 velocityDifference = link->GetWorldLinearVel() - fluidVelocity;
             math::Vector3 angularVelocity = link->GetWorldAngularVel();
-            math::Vector3 angularDrag = - 0.5 * densityOfFluid * sideAreas * dragCoefficient *
-                     angularVelocity.GetAbs() * angularVelocity;
-            link->AddTorque(angularDrag);
+
+            // Get model quaternion and rotate velocity difference to get the velocity relative to the
+            // model frame. This velocity is necessary to calculate the drag forces.
+            // The drag forces have to be transformed to the world frame (with RotateVectorReverse),
+            // before being applied to the model.
+            // mf = model frame
+            math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
+            math::Vector3 mfVelocity = modelQuaternion.RotateVector( velocityDifference );
+            math::Vector3 mfAngularVelocity = modelQuaternion.RotateVector( angularVelocity );
+
+            // Linear damp
+            math::Vector3 linearDamp = - linearDampCoefficients * mfVelocity;
+            link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(linearDamp),cogPosition);
+
+            math::Vector3 linearAngularDamp = - linearDampAngleCoefficients * mfAngularVelocity;
+            link->AddTorque( modelQuaternion.RotateVectorReverse(linearAngularDamp) );
+
+            // Quadratic damp
+            math::Vector3 quadraticDamp = - quadraticDampCoefficients *
+                     mfVelocity.GetAbs() * mfVelocity;
+            link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(quadraticDamp),cogPosition);
+
+            math::Vector3 quadraticAngularDamp = - quadraticDampAngleCoefficients *
+                     mfAngularVelocity.GetAbs() * mfAngularVelocity;
+            link->AddTorque( modelQuaternion.RotateVectorReverse(quadraticAngularDamp) );
         }
     }
-
 
     void GazeboUnderwater::applyBuoyancy()
     {
@@ -130,9 +163,9 @@ namespace gazebo_underwater
         double distanceToSurface = waterLevel - cogPosition.z;
         math::Vector3 linkBuoyancy;
 
-        double submersedVolume = calculateSubmersedVolume(distanceToSurface);
         // The buoyancy is proportional no the submersed volume
-        linkBuoyancy = math::Vector3(0,0,submersedVolume * abs(buoyancy));
+        double submersedVolume = calculateSubmersedVolume(distanceToSurface);
+        linkBuoyancy = math::Vector3(0,0,submersedVolume * buoyancy );
 
         math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
                 link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
