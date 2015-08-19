@@ -24,6 +24,7 @@ namespace gazebo_underwater
             template <typename T>
             T getParameter(std::string parameter_name, std::string dimension, T default_value) const;
             double calculateSubmersedRatio(double) const;
+            double computeModelMass(ModelPtr model) const;
 
             WorldPtr world;
             ModelPtr model;

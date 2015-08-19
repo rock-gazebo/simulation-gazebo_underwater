@@ -85,9 +85,18 @@ namespace gazebo_underwater
             return model->GetLinks().front();
         }
     }
+
+    double GazeboUnderwater::computeModelMass(physics::ModelPtr model) const
+    {
+        double mass = 0;
+        physics::Link_V links = model->GetLinks();
+        for (physics::Link_V::iterator it = links.begin(); it != links.end(); ++it)
+            mass += (*it)->GetInertial()->GetMass();
+        return mass;
+    }
+
     void GazeboUnderwater::loadParameters(void)
     {
-
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
         linearDampCoefficients = getParameter<math::Vector3>("linear_damp_coefficients","N.s/m",
@@ -100,7 +109,7 @@ namespace gazebo_underwater
                 math::Vector3(35,35,35));
         // buoyancy must be the difference between the buoyancy when the model is completely submersed and the model weight
         buoyancy = getParameter<double>("buoyancy","N", 5);
-        buoyancy = abs(buoyancy) + link->GetInertial()->GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength();
+        buoyancy = abs(buoyancy) + computeModelMass(model) * world->GetPhysicsEngine()->GetGravity().GetLength();
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
     }
