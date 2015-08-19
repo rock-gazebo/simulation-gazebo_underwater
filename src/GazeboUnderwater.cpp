@@ -87,7 +87,6 @@ namespace gazebo_underwater
     }
     void GazeboUnderwater::loadParameters(void)
     {
-        math::Box linkBoudingBox = link->GetBoundingBox();
 
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
@@ -104,14 +103,6 @@ namespace gazebo_underwater
         buoyancy = abs(buoyancy) + link->GetInertial()->GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength();
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
-
-        // If side_areas are not given in world file we use the bouding box dimensions to calculate it
-        sideAreas = getParameter<math::Vector3>("side_areas","meter2",
-                math::Vector3(linkBoudingBox.GetYLength() * linkBoudingBox.GetZLength(),
-                    linkBoudingBox.GetXLength() * linkBoudingBox.GetZLength(),
-                    linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength()));
-        if( sideAreas == math::Vector3(0.0,0.0,0.0) )
-            gzthrow("GazeboUnderwater: side_areas cannot be (0.0, 0.0, 0.0).");
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)

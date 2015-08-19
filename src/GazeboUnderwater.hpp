@@ -38,7 +38,6 @@ namespace gazebo_underwater
             gazebo::math::Vector3 linearDampAngleCoefficients;
             gazebo::math::Vector3 quadraticDampCoefficients;
             gazebo::math::Vector3 quadraticDampAngleCoefficients;
-            gazebo::math::Vector3 sideAreas;
             double waterLevel;       // dimension in meter
             double buoyancy;
 
