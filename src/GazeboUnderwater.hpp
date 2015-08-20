@@ -9,18 +9,26 @@ namespace gazebo_underwater
 {
     class GazeboUnderwater : public gazebo::WorldPlugin
     {
+            typedef gazebo::physics::ModelPtr ModelPtr;
+            typedef gazebo::physics::WorldPtr WorldPtr;
+            typedef gazebo::physics::LinkPtr LinkPtr;
+            typedef gazebo::physics::Inertial Inertial;
+
         private: 
             void updateBegin(gazebo::common::UpdateInfo const& info); 
             void applyBuoyancy();
             void applyViscousDamp();
+            ModelPtr getModel(WorldPtr world, sdf::ElementPtr sdf) const;
+            LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();
             template <typename T>
-            T getParameter(std::string parameter_name, std::string dimension, T default_value);
-            double calculateSubmersedVolume(double);
+            T getParameter(std::string parameter_name, std::string dimension, T default_value) const;
+            double calculateSubmersedRatio(double) const;
+            double computeModelMass(ModelPtr model) const;
 
-            gazebo::physics::WorldPtr world;
-            gazebo::physics::ModelPtr model;
-            gazebo::physics::LinkPtr link;
+            WorldPtr world;
+            ModelPtr model;
+            LinkPtr link;
 
             sdf::ElementPtr sdf;
             std::vector<gazebo::event::ConnectionPtr> eventHandler;
@@ -31,14 +39,13 @@ namespace gazebo_underwater
             gazebo::math::Vector3 linearDampAngleCoefficients;
             gazebo::math::Vector3 quadraticDampCoefficients;
             gazebo::math::Vector3 quadraticDampAngleCoefficients;
-            gazebo::math::Vector3 sideAreas;
             double waterLevel;       // dimension in meter
             double buoyancy;
 
         public:
             GazeboUnderwater();
             ~GazeboUnderwater();
-            virtual void Load(gazebo::physics::WorldPtr _parent, sdf::ElementPtr _sdf);
+            virtual void Load(WorldPtr _parent, sdf::ElementPtr _sdf);
     };
 
     GZ_REGISTER_WORLD_PLUGIN(GazeboUnderwater)
