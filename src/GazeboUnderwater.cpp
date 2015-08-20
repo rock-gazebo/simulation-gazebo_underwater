@@ -70,9 +70,10 @@ namespace gazebo_underwater
 
     physics::LinkPtr GazeboUnderwater::getReferenceLink(physics::ModelPtr model, sdf::ElementPtr sdf) const
     {
-        if(!sdf->HasElement("link_name"))
+        if(sdf->HasElement("link_name"))
         {
             physics::LinkPtr link = model->GetLink( sdf->Get<string>("link_name") );
+            gzmsg << "GazeboUnderwater: reference link: " << link->GetName() << endl;
             if (!link) {
                 string msg = "GazeboUnderwater: link " + sdf->Get<string>("link_name")
                         + " not found in model " + model->GetName();
@@ -82,7 +83,9 @@ namespace gazebo_underwater
         }else if (model->GetLinks().empty()) {
             gzthrow("GazeboUnderwater: no link defined in model");
         }else{
-            return model->GetLinks().front();
+            physics::LinkPtr link = model->GetLinks().front();
+            gzmsg << "GazeboUnderwater: reference link not defined, using instead: " << link->GetName() << endl;
+            return link;
         }
     }
 
