@@ -8,4 +8,5 @@
   <logo>http://</logo>
   <depend package="base/cmake" />
   <depend package="simulation/gazebo" />
+  <depend package="base/types" />
 </package>

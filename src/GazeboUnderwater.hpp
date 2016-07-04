@@ -4,6 +4,8 @@
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/math/Vector3.hh>
+#include "base/Eigen.hpp"
+#include <vector>
 
 namespace gazebo_underwater
 {
@@ -32,6 +34,15 @@ namespace gazebo_underwater
 
             sdf::ElementPtr sdf;
             std::vector<gazebo::event::ConnectionPtr> eventHandler;
+
+            // Added intertia of a rigid body robot
+            base::Matrix6d addedInertia;
+            // Matrices of dampings.
+            // If vector has two elements, they will be the linear and quadratic
+            // dampin respectivly.
+            // If vector has 6 elements they will be quadratic damping of
+            // linear velocities x,y,z followed by the angular velocities x,y,z
+            std::vector<base::Matrix6d> dampingCoefficients;
 
             gazebo::math::Vector3 centerOfBuoyancy;
             gazebo::math::Vector3 fluidVelocity;
