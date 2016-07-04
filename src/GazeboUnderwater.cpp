@@ -1,5 +1,9 @@
 #include "GazeboUnderwater.hpp"
 #include <gazebo/common/Exception.hh>
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/regex.hpp>
+#include <boost/regex.hpp>
+#include <stdlib.h>
 
 using namespace std;
 using namespace gazebo;
@@ -115,6 +119,31 @@ namespace gazebo_underwater
         buoyancy = abs(buoyancy) + computeModelMass(model) * world->GetPhysicsEngine()->GetGravity().GetLength();
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
+        std::string damp_matrices;
+        damp_matrices += "50 0 0 0 0 0\n";
+        damp_matrices += "0 50 0 0 0 0\n";
+        damp_matrices += "0 0 50 0 0 0\n";
+        damp_matrices += "0 0 0 45 0 0\n";
+        damp_matrices += "0 0 0 0 45 0\n";
+        damp_matrices += "0 0 0 0 0 45\n\n";
+        damp_matrices += "40 0 0 0 0 0\n";
+        damp_matrices += "0 40 0 0 0 0\n";
+        damp_matrices += "0 0 40 0 0 0\n";
+        damp_matrices += "0 0 0 35 0 0\n";
+        damp_matrices += "0 0 0 0 35 0\n";
+        damp_matrices += "0 0 0 0 0 35";
+        dampingCoefficients = convertToMatrices(getParameter<string>("damping_coefficients","N/vel^n / vel^n={m/s, rad/s, m2/s2. rad2/s2}",damp_matrices));
+
+        std::string extra_inertia;
+        extra_inertia += "0 0 0 0 0 0\n";
+        extra_inertia += "0 0 0 0 0 0\n";
+        extra_inertia += "0 0 0 0 0 0\n";
+        extra_inertia += "0 0 0 0 0 0\n";
+        extra_inertia += "0 0 0 0 0 0\n";
+        extra_inertia += "0 0 0 0 0 0";
+        addedInertia = convertToMatrix(getParameter<string>("added_inertia","Kg, Kg.m2", extra_inertia));
+
+
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
@@ -196,5 +225,38 @@ namespace gazebo_underwater
         }
         // The submersed volume is given in percentage
         return submersedVolume/linkVolume;
+    }
+
+    std::vector<base::Matrix6d> GazeboUnderwater::convertToMatrices(const std::string &matrices)
+    {
+        std::vector<base::Matrix6d> ret;
+        std::vector<std::string> splitted;
+        boost::algorithm::split_regex( splitted, matrices, boost::regex( "\n\n" ));
+        for( size_t i=0; i<splitted.size(); i++)
+            std::cout << "damping: " << splitted.at(i) << std::endl;
+        if (splitted.size() != 2 && splitted.size() != 6)
+            gzthrow("GazeboUnderwater: Damping Parameters has not 2 or 6 matrices!");
+        for( size_t i=0; i<splitted.size(); i++)
+            ret.push_back(convertToMatrix(splitted.at(i)));
+        return ret;
+    }
+
+    base::Matrix6d GazeboUnderwater::convertToMatrix(const std::string &matrix)
+    {
+        base::Matrix6d ret;
+        std::vector<std::string> splitted;
+        boost::split( splitted, matrix, boost::is_any_of( "\n" ), boost::token_compress_on );
+        if (splitted.size() != 6)
+            gzthrow("GazeboUnderwater: Matrix has not 6 lines!");
+        for( size_t i=0; i<6; i++)
+        {
+            std::vector<std::string> line;
+            boost::split( line, splitted[i], boost::is_any_of( " " ), boost::token_compress_on );
+            if (line.size() != 6)
+                gzthrow("GazeboUnderwater: Line has not 6 columns!");
+            for(size_t j=0; j<6; j++)
+                ret(i,j) = atof(line.at(j).c_str());
+        }
+        return ret;
     }
 }

@@ -28,6 +28,9 @@ namespace gazebo_underwater
             double calculateSubmersedRatio(double) const;
             double computeModelMass(ModelPtr model) const;
 
+            std::vector<base::Matrix6d> convertToMatrices(const std::string &matrices);
+            base::Matrix6d convertToMatrix(const std::string &matrix);
+
             WorldPtr world;
             ModelPtr model;
             LinkPtr link;
