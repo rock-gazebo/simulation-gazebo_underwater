@@ -16,10 +16,10 @@ namespace gazebo_underwater
             typedef gazebo::physics::LinkPtr LinkPtr;
             typedef gazebo::physics::Inertial Inertial;
 
-        private: 
-            void updateBegin(gazebo::common::UpdateInfo const& info); 
+        private:
+            void updateBegin(gazebo::common::UpdateInfo const& info);
             void applyBuoyancy();
-            void applyViscousDamp();
+            void applyDamp();
             ModelPtr getModel(WorldPtr world, sdf::ElementPtr sdf) const;
             LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();
@@ -27,6 +27,7 @@ namespace gazebo_underwater
             T getParameter(std::string parameter_name, std::string dimension, T default_value) const;
             double calculateSubmersedRatio(double) const;
             double computeModelMass(ModelPtr model) const;
+            base::Vector6d getModelFrameVelocities();
 
             std::vector<base::Matrix6d> convertToMatrices(const std::string &matrices);
             base::Matrix6d convertToMatrix(const std::string &matrix);

@@ -149,45 +149,43 @@ namespace gazebo_underwater
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
     {
         applyBuoyancy();
-        applyViscousDamp();
+        applyDamp();
     }
 
-    void GazeboUnderwater::applyViscousDamp()
+    void GazeboUnderwater::applyDamp()
     {
         math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
         double distanceToSurface = waterLevel - cogPosition.z;
+        // Define damping as proportional to the submersed volume
+        double submersedRatio = calculateSubmersedRatio(distanceToSurface);
+
         if( distanceToSurface > 0 )
         {
-            // Calculates the difference between the model and fluid velocity relative to the world frame
-            math::Vector3 velocityDifference = link->GetWorldLinearVel() - fluidVelocity;
-            math::Vector3 angularVelocity = link->GetWorldAngularVel();
-
-            // Get model quaternion and rotate velocity difference to get the velocity relative to the
-            // model frame. This velocity is necessary to calculate the drag forces.
-            // The drag forces have to be transformed to the world frame (with RotateVectorReverse),
-            // before being applied to the model.
-            // mf = model frame
             math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
-            math::Vector3 mfVelocity = modelQuaternion.RotateVector( velocityDifference );
-            math::Vector3 mfAngularVelocity = modelQuaternion.RotateVector( angularVelocity );
+            base::Vector6d velocities = getModelFrameVelocities();
 
-            // Linear damp
-            math::Vector3 linearDamp = - linearDampCoefficients * mfVelocity;
+            base::Vector6d damp = base::Vector6d::Zero();
+            if(dampingCoefficients.size() == 2)
+              damp = - dampingCoefficients[0] * velocities - dampingCoefficients[1] * velocities.cwiseAbs().asDiagonal() * velocities;
+            else if(dampingCoefficients.size() == 6)
+            {
+              base::Matrix6d dampMatrix = base::Matrix6d::Zero();
+              for(size_t i=0; i < dampingCoefficients.size(); i++)
+                  dampMatrix += dampingCoefficients[i] * velocities.cwiseAbs()[i];
+              damp = - dampMatrix * velocities;
+            }
+            else
+              gzthrow("GazeboUnderwater: Damping Parameter has wrong dimension!");
+            // Define damping as proportional to the submersed volume
+            damp *= submersedRatio;
+
+            math::Vector3 linearDamp(damp[0], damp[1], damp[2]);
+            math::Vector3 angularDamp(damp[3], damp[4], damp[5]);
+
             link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(linearDamp),cogPosition);
-
-            math::Vector3 linearAngularDamp = - linearDampAngleCoefficients * mfAngularVelocity;
-            link->AddTorque( modelQuaternion.RotateVectorReverse(linearAngularDamp) );
-
-            // Quadratic damp
-            math::Vector3 quadraticDamp = - quadraticDampCoefficients *
-                     mfVelocity.GetAbs() * mfVelocity;
-            link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(quadraticDamp),cogPosition);
-
-            math::Vector3 quadraticAngularDamp = - quadraticDampAngleCoefficients *
-                     mfAngularVelocity.GetAbs() * mfAngularVelocity;
-            link->AddTorque( modelQuaternion.RotateVectorReverse(quadraticAngularDamp) );
-        }
-    }
+            link->AddTorque( modelQuaternion.RotateVectorReverse(angularDamp) );
+           }
+       }
 
     void GazeboUnderwater::applyBuoyancy()
     {
@@ -258,5 +256,19 @@ namespace gazebo_underwater
                 ret(i,j) = atof(line.at(j).c_str());
         }
         return ret;
+    }
+
+    base::Vector6d GazeboUnderwater::getModelFrameVelocities()
+    {
+        // Calculates the difference between the model and fluid velocity relative to the world frame
+        math::Vector3 velocityDifference = link->GetWorldLinearVel() - fluidVelocity;
+        math::Vector3 angularVelocity = link->GetWorldAngularVel();
+
+        math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
+        math::Vector3 mfVelocity = modelQuaternion.RotateVector( velocityDifference );
+        math::Vector3 mfAngularVelocity = modelQuaternion.RotateVector( angularVelocity );
+        base::Vector6d velocities = base::Vector6d::Zero();
+        velocities << mfVelocity[0], mfVelocity[1], mfVelocity[2], mfAngularVelocity[0], mfAngularVelocity[1], mfAngularVelocity[2];
+        return velocities;
     }
 }
