@@ -20,6 +20,7 @@ namespace gazebo_underwater
             void updateBegin(gazebo::common::UpdateInfo const& info);
             void applyBuoyancy();
             void applyDamp();
+            void applyCoriolisAddedInertia();
             ModelPtr getModel(WorldPtr world, sdf::ElementPtr sdf) const;
             LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();

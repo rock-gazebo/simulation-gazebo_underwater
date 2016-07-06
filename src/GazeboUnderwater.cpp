@@ -225,6 +225,37 @@ namespace gazebo_underwater
         return submersedVolume/linkVolume;
     }
 
+    void GazeboUnderwater::applyCoriolisAddedInertia()
+    {
+        /**
+         * Based on McFarland[2013] and Fossen[1994]
+         * coriolisEffect = H(M*v)*v
+         * M = inertiaMatrix; v = velocity
+         * Operator H: R^6 -> R^(6x6).
+         *      H(v) = [0(3x3), J(v.head(3));
+         *              J(v.head(3)),  J(v.tail(3))]
+         * Operator J: R^3 -> R^(3x3) (the so(3) operator, skew-symmetric matrix)
+         *      J([v1; v2; v3]) = [ 0 ,-v3, v2;
+         *                          v3, 0 ,-v1;
+         *                         -v2, v1, 0]
+         * Cross product:
+         *      J(v.head(3)) * v.tail(3) = v.head(3) X v.tail(3)
+         */
+        base::Vector6d velocities = getModelFrameVelocities();
+        base::Vector6d coriloisEffect;
+        base::Vector6d prod = addedInertia * velocities;
+        coriloisEffect << prod.head<3>().cross(velocities.tail<3>()),
+                    prod.head<3>().cross(velocities.head<3>()) + prod.tail<3>().cross(velocities.tail<3>());
+
+        math::Vector3 linearCoriolis(-coriloisEffect[0], -coriloisEffect[1], -coriloisEffect[2]);
+        math::Vector3 angularCoriolis(-coriloisEffect[3], -coriloisEffect[4], -coriloisEffect[5]);
+
+        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
+        math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
+        link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(linearCoriolis),cogPosition);
+        link->AddTorque( modelQuaternion.RotateVectorReverse(angularCoriolis) );
+    }
+
     std::vector<base::Matrix6d> GazeboUnderwater::convertToMatrices(const std::string &matrices)
     {
         std::vector<base::Matrix6d> ret;
