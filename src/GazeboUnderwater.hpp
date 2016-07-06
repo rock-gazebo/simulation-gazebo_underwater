@@ -21,6 +21,7 @@ namespace gazebo_underwater
             void applyBuoyancy();
             void applyDamp();
             void applyCoriolisAddedInertia();
+            void applyCompensatedEffort();
             ModelPtr getModel(WorldPtr world, sdf::ElementPtr sdf) const;
             LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();
@@ -28,6 +29,7 @@ namespace gazebo_underwater
             T getParameter(std::string parameter_name, std::string dimension, T default_value) const;
             double calculateSubmersedRatio(double) const;
             double computeModelMass(ModelPtr model) const;
+            base::Matrix6d mountGzInertiaMatrix(ModelPtr model) const;
             base::Vector6d getModelFrameVelocities();
 
             std::vector<base::Matrix6d> convertToMatrices(const std::string &matrices);
@@ -48,6 +50,11 @@ namespace gazebo_underwater
             // If vector has 6 elements they will be quadratic damping of
             // linear velocities x,y,z followed by the angular velocities x,y,z
             std::vector<base::Matrix6d> dampingCoefficients;
+
+            // Inertia matrix present in gazebo
+            base::Matrix6d gzInertia;
+            // inverse inertia matrix, (gzInertia + addedInertia)^-1
+            base::Matrix6d inverseInertia;
 
             gazebo::math::Vector3 centerOfBuoyancy;
             gazebo::math::Vector3 fluidVelocity;
