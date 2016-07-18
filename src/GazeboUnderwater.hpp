@@ -4,8 +4,7 @@
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/math/Vector3.hh>
-#include "base/Eigen.hpp"
-#include <vector>
+#include "DataTypes.hpp"
 
 namespace gazebo_underwater
 {
@@ -22,6 +21,7 @@ namespace gazebo_underwater
             void applyDamp();
             void applyCoriolisAddedInertia();
             void applyCompensatedEffort();
+            void applyEffortAddedInertia();
             ModelPtr getModel(WorldPtr world, sdf::ElementPtr sdf) const;
             LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();
@@ -29,11 +29,10 @@ namespace gazebo_underwater
             T getParameter(std::string parameter_name, std::string dimension, T default_value) const;
             double calculateSubmersedRatio(double) const;
             double computeModelMass(ModelPtr model) const;
-            base::Matrix6d mountGzInertiaMatrix(ModelPtr model) const;
-            base::Vector6d getModelFrameVelocities();
+            Vector6 getModelFrameVelocities();
 
-            std::vector<base::Matrix6d> convertToMatrices(const std::string &matrices);
-            base::Matrix6d convertToMatrix(const std::string &matrix);
+            std::vector<Matrix6> convertToMatrices(const std::string &matrices);
+            Matrix6 convertToMatrix(const std::string &matrix);
 
             WorldPtr world;
             ModelPtr model;
@@ -43,25 +42,17 @@ namespace gazebo_underwater
             std::vector<gazebo::event::ConnectionPtr> eventHandler;
 
             // Added intertia of a rigid body robot
-            base::Matrix6d addedInertia;
+            Matrix6 addedInertia;
             // Matrices of dampings.
             // If vector has two elements, they will be the linear and quadratic
             // dampin respectivly.
             // If vector has 6 elements they will be quadratic damping of
             // linear velocities x,y,z followed by the angular velocities x,y,z
-            std::vector<base::Matrix6d> dampingCoefficients;
-
-            // Inertia matrix present in gazebo
-            base::Matrix6d gzInertia;
-            // inverse inertia matrix, (gzInertia + addedInertia)^-1
-            base::Matrix6d inverseInertia;
+            std::vector<Matrix6> dampingCoefficients;
 
             gazebo::math::Vector3 centerOfBuoyancy;
             gazebo::math::Vector3 fluidVelocity;
-            gazebo::math::Vector3 linearDampCoefficients;
-            gazebo::math::Vector3 linearDampAngleCoefficients;
-            gazebo::math::Vector3 quadraticDampCoefficients;
-            gazebo::math::Vector3 quadraticDampAngleCoefficients;
+
             double waterLevel;       // dimension in meter
             double buoyancy;
 

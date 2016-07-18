@@ -106,14 +106,7 @@ namespace gazebo_underwater
     {
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
-        linearDampCoefficients = getParameter<math::Vector3>("linear_damp_coefficients","N.s/m",
-                math::Vector3(50,50,50));
-        linearDampAngleCoefficients = getParameter<math::Vector3>("linear_damp_angle_coefficients","N.s",
-                math::Vector3(45,45,45));
-        quadraticDampCoefficients = getParameter<math::Vector3>("quadratic_damp_coefficients","N.s2/m2",
-                math::Vector3(40,40,40));
-        quadraticDampAngleCoefficients = getParameter<math::Vector3>("quadratic_damp_angle_coefficients","N.s2/m",
-                math::Vector3(35,35,35));
+
         // buoyancy must be the difference between the buoyancy when the model is completely submersed and the model weight
         buoyancy = getParameter<double>("buoyancy","N", 5);
         buoyancy = abs(buoyancy) + computeModelMass(model) * world->GetPhysicsEngine()->GetGravity().GetLength();
@@ -135,18 +128,13 @@ namespace gazebo_underwater
         dampingCoefficients = convertToMatrices(getParameter<string>("damping_coefficients","N/vel^n / vel^n={m/s, rad/s, m2/s2. rad2/s2}",damp_matrices));
 
         std::string extra_inertia;
-        extra_inertia += "0 0 0 0 0 0\n";
-        extra_inertia += "0 0 0 0 0 0\n";
-        extra_inertia += "0 0 0 0 0 0\n";
-        extra_inertia += "0 0 0 0 0 0\n";
-        extra_inertia += "0 0 0 0 0 0\n";
-        extra_inertia += "0 0 0 0 0 0";
+        extra_inertia += "100 0 0 0 0 0\n";
+        extra_inertia += "0 100 0 0 0 0\n";
+        extra_inertia += "0 0 100 0 0 0\n";
+        extra_inertia += "0 0 0 100 0 0\n";
+        extra_inertia += "0 0 0 0 100 0\n";
+        extra_inertia += "0 0 0 0 0 100";
         addedInertia = convertToMatrix(getParameter<string>("added_inertia","Kg, Kg.m2", extra_inertia));
-
-        gzInertia = mountGzInertiaMatrix(model);
-        inverseInertia = gzInertia + addedInertia;
-        Eigen::JacobiSVD<base::Matrix6d> svd(inverseInertia, Eigen::ComputeFullU | Eigen::ComputeFullV);
-        inverseInertia = svd.solve(base::Matrix6d::Identity());
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
@@ -154,7 +142,7 @@ namespace gazebo_underwater
         applyBuoyancy();
         applyDamp();
         applyCoriolisAddedInertia();
-        applyCompensatedEffort();
+        applyEffortAddedInertia();
     }
 
     void GazeboUnderwater::applyDamp()
@@ -167,28 +155,32 @@ namespace gazebo_underwater
         if( distanceToSurface > 0 )
         {
             math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
-            base::Vector6d velocities = getModelFrameVelocities();
+            Vector6 vel = getModelFrameVelocities();
 
-            base::Vector6d damp = base::Vector6d::Zero();
+            Vector6 damp;
             if(dampingCoefficients.size() == 2)
-              damp = - dampingCoefficients[0] * velocities - dampingCoefficients[1] * velocities.cwiseAbs().asDiagonal() * velocities;
+            {
+                Vector6 vel_square(vel.top*vel.top.GetAbs(), vel.bottom*vel.bottom.GetAbs());
+                damp = dampingCoefficients[0] * vel - dampingCoefficients[1] * vel_square;
+            }
             else if(dampingCoefficients.size() == 6)
             {
-              base::Matrix6d dampMatrix = base::Matrix6d::Zero();
-              for(size_t i=0; i < dampingCoefficients.size(); i++)
-                  dampMatrix += dampingCoefficients[i] * velocities.cwiseAbs()[i];
-              damp = - dampMatrix * velocities;
+                Matrix6 dampMatrix;
+                Vector6 vel_abs(vel.top.GetAbs(), vel.bottom.GetAbs());
+                for(size_t i=0; i < 3; i++)
+                {
+                    dampMatrix += dampingCoefficients[i] * vel_abs.top[i];
+                    dampMatrix += dampingCoefficients[i+3] * vel_abs.bottom[i];
+                }
+                damp = dampMatrix * vel;
             }
             else
               gzthrow("GazeboUnderwater: Damping Parameter has wrong dimension!");
             // Define damping as proportional to the submersed volume
-            damp *= submersedRatio;
+            damp *= -submersedRatio;
 
-            math::Vector3 linearDamp(damp[0], damp[1], damp[2]);
-            math::Vector3 angularDamp(damp[3], damp[4], damp[5]);
-
-            link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(linearDamp),cogPosition);
-            link->AddTorque( modelQuaternion.RotateVectorReverse(angularDamp) );
+            link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(damp.top),cogPosition);
+            link->AddTorque( modelQuaternion.RotateVectorReverse(damp.bottom) );
            }
        }
 
@@ -246,58 +238,35 @@ namespace gazebo_underwater
          * Cross product:
          *      J(v.head(3)) * v.tail(3) = v.head(3) X v.tail(3)
          */
-        base::Vector6d velocities = getModelFrameVelocities();
-        base::Vector6d coriloisEffect;
-        base::Vector6d prod = addedInertia * velocities;
-        coriloisEffect << prod.head<3>().cross(velocities.tail<3>()),
-                    prod.head<3>().cross(velocities.head<3>()) + prod.tail<3>().cross(velocities.tail<3>());
-
-        math::Vector3 linearCoriolis(-coriloisEffect[0], -coriloisEffect[1], -coriloisEffect[2]);
-        math::Vector3 angularCoriolis(-coriloisEffect[3], -coriloisEffect[4], -coriloisEffect[5]);
+        Vector6 velocities = getModelFrameVelocities();
+        Vector6 prod = addedInertia * velocities;
+        Vector6 coriloisEffect( prod.top.Cross(velocities.bottom),
+                    prod.top.Cross(velocities.top) + prod.bottom.Cross(velocities.bottom));
 
         math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
         math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
-        link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(linearCoriolis),cogPosition);
-        link->AddTorque( modelQuaternion.RotateVectorReverse(angularCoriolis) );
+        link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(coriloisEffect.top),cogPosition);
+        link->AddTorque( modelQuaternion.RotateVectorReverse(coriloisEffect.bottom));
     }
 
-    void GazeboUnderwater::applyCompensatedEffort()
-    {
-        /**
-         * AUV acceleration
-         *  acceleration = (M+Ma)^-1 * (Thruster - Coriolis - Coriolis_added_mass - Buoyancy - Damping)
-         *  acceleration = (M+Ma)^-1 * (F - Coriolis); F = (Thruster - Coriolis_added_mass - Buoyancy - Damping)
-         *
-         * Acceleration computed by Gazebo
-         *  acceleration' = M^-1 * (F' - Coriolis)
-         *
-         * acceleration = acceleration'
-         * (M+Ma)^-1 * (F - Coriolis) = M^-1 * (F' - Coriolis)
-         * F' = F + C  => (M+Ma)^-1 * (F - Coriolis) = M^-1 * (F - Coriolis + C)
-         * C = (M*(M+Ma)^-1 - I) * (F - Coriolis); ??(F - Coriolis) = GetForceTorque()??
-         *
-         * Compesanted force C will make Gazebo compute the expected acceleration, ignoring the added mass matrix
-         */
-        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
+    void GazeboUnderwater::applyEffortAddedInertia()
+    {   //Remove the effect of the Added Inertia, using the acceleration of previous step.
         math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
+        Vector6 acceleration;
+        acceleration.top = modelQuaternion.RotateVector( link->GetWorldLinearAccel() );
+        acceleration.bottom = modelQuaternion.RotateVector( link->GetWorldAngularAccel() );
 
-        math::Vector3 gzForce = modelQuaternion.RotateVector(link->GetWorldForce());
-        math::Vector3 gzTorque = modelQuaternion.RotateVector(link->GetWorldTorque());
-        base::Vector6d forces;
-        forces << gzForce[0], gzForce[1], gzForce[2], gzTorque[0], gzTorque[1], gzTorque[2];
-        base::Vector6d compForce = (gzInertia * inverseInertia - base::Matrix6d::Identity()) * forces;
+        Vector6 addedInertiaEffect = addedInertia * acceleration;
+        addedInertiaEffect *= -1;
 
-        math::Vector3 linearComp(compForce[0], compForce[1], compForce[2]);
-        math::Vector3 angularComp(compForce[3], compForce[4], compForce[5]);
-
-
-        link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(linearComp),cogPosition);
-        link->AddTorque( modelQuaternion.RotateVectorReverse(angularComp) );
+        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
+        link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(addedInertiaEffect.top),cogPosition);
+        link->AddTorque( modelQuaternion.RotateVectorReverse(addedInertiaEffect.bottom));
     }
 
-    std::vector<base::Matrix6d> GazeboUnderwater::convertToMatrices(const std::string &matrices)
+    std::vector<Matrix6> GazeboUnderwater::convertToMatrices(const std::string &matrices)
     {
-        std::vector<base::Matrix6d> ret;
+        std::vector<Matrix6> ret;
         std::vector<std::string> splitted;
         boost::algorithm::split_regex( splitted, matrices, boost::regex( "\n\n" ));
         if (splitted.size() != 2 && splitted.size() != 6)
@@ -307,9 +276,9 @@ namespace gazebo_underwater
         return ret;
     }
 
-    base::Matrix6d GazeboUnderwater::convertToMatrix(const std::string &matrix)
+    Matrix6 GazeboUnderwater::convertToMatrix(const std::string &matrix)
     {
-        base::Matrix6d ret;
+        Matrix6 ret;
         std::vector<std::string> splitted;
         boost::split( splitted, matrix, boost::is_any_of( "\n" ), boost::token_compress_on );
         if (splitted.size() != 6)
@@ -321,45 +290,31 @@ namespace gazebo_underwater
             if (line.size() != 6)
                 gzthrow("GazeboUnderwater: Line has not 6 columns!");
             for(size_t j=0; j<6; j++)
-                ret(i,j) = atof(line.at(j).c_str());
+            {
+                if(i<3 && j<3)
+                    ret.top_left[i][j] = atof(line.at(j).c_str());
+                else if(i<3 && j>=3)
+                    ret.top_right[i][j-3] = atof(line.at(j).c_str());
+                else if(i>=3 && j<3)
+                    ret.bottom_left[i-3][j] = atof(line.at(j).c_str());
+                else if(i>=3 && j>=3)
+                    ret.bottom_right[i-3][j-3] = atof(line.at(j).c_str());
+            }
         }
         return ret;
     }
 
-    base::Vector6d GazeboUnderwater::getModelFrameVelocities()
+    Vector6 GazeboUnderwater::getModelFrameVelocities()
     {
         // Calculates the difference between the model and fluid velocity relative to the world frame
         math::Vector3 velocityDifference = link->GetWorldLinearVel() - fluidVelocity;
         math::Vector3 angularVelocity = link->GetWorldAngularVel();
 
         math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
-        math::Vector3 mfVelocity = modelQuaternion.RotateVector( velocityDifference );
-        math::Vector3 mfAngularVelocity = modelQuaternion.RotateVector( angularVelocity );
-        base::Vector6d velocities = base::Vector6d::Zero();
-        velocities << mfVelocity[0], mfVelocity[1], mfVelocity[2], mfAngularVelocity[0], mfAngularVelocity[1], mfAngularVelocity[2];
+        Vector6 velocities;
+        velocities.top = modelQuaternion.RotateVector( velocityDifference );
+        velocities.bottom = modelQuaternion.RotateVector( angularVelocity );
         return velocities;
     }
 
-    base::Matrix6d GazeboUnderwater::mountGzInertiaMatrix(ModelPtr model) const
-    {
-        base::Matrix6d gzInertia = base::Matrix6d::Zero();
-        gzInertia(0,0) = computeModelMass(model);
-        gzInertia(1,1) = gzInertia(0,0);
-        gzInertia(2,2) = gzInertia(0,0);
-
-        physics::Link_V links = model->GetLinks();
-        for (physics::Link_V::iterator it = links.begin(); it != links.end(); ++it)
-        {
-           gzInertia(3,3) += (*it)->GetInertial()->GetIXX();
-           gzInertia(4,4) += (*it)->GetInertial()->GetIYY();
-           gzInertia(5,5) += (*it)->GetInertial()->GetIZZ();
-           gzInertia(3,4) += (*it)->GetInertial()->GetIXY();
-           gzInertia(3,5) += (*it)->GetInertial()->GetIXZ();
-           gzInertia(4,5) += (*it)->GetInertial()->GetIYZ();
-           gzInertia(4,3) += gzInertia(3,4);
-           gzInertia(5,3) += gzInertia(3,5);
-           gzInertia(5,4) += gzInertia(4,5);
-        }
-        return gzInertia;
-    }
 }
