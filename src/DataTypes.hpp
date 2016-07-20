@@ -46,6 +46,14 @@ struct Matrix6
         this->bottom_right = this->bottom_right + value.bottom_right;
         return *this;
     }
+    inline Matrix6& operator-=(const Matrix6 &value)
+    {
+        this->top_left = this->top_left - value.top_left;
+        this->top_right = this->top_right - value.top_right;
+        this->bottom_left = this->bottom_left - value.bottom_left;
+        this->bottom_right = this->bottom_right - value.bottom_right;
+        return *this;
+    }
     inline Matrix6& operator*=(const double &value)
     {
         this->top_left = this->top_left * value;
@@ -54,6 +62,22 @@ struct Matrix6
         this->bottom_right = this->bottom_right * value;
         return *this;
     }
+    Matrix6 Inverse()
+    {
+        /** Inversion by blocks
+         * [A, B;⁻¹ = [(A - BD⁻¹C)⁻¹, -A⁻¹B(D - CA⁻¹B)⁻¹;
+         *  C, D]      -D⁻¹C(A - BD⁻¹C)⁻¹, (D - CA⁻¹B)⁻¹]
+         */
+         Matrix6 inv;
+         gazebo::math::Matrix3 Sd = (this->top_left - this->top_right*this->bottom_right.Inverse()*this->bottom_left).Inverse();
+         gazebo::math::Matrix3 Sa = (this->bottom_right - this->bottom_left*this->top_left.Inverse()*this->top_right).Inverse();
+         inv.top_left = Sd;
+         inv.top_right = this->top_left.Inverse()*this->top_right*Sa*(-1);
+         inv.bottom_left = this->bottom_right.Inverse()*this->bottom_left*Sd*(-1);
+         inv.bottom_right = Sa;
+         return inv;
+    }
+
 };
 
 struct Vector6
@@ -111,6 +135,14 @@ inline Matrix6 operator*(double scalar, Matrix6 value)
 inline Matrix6 operator*(Matrix6 value, double scalar)
 {
     return value *= scalar;
+}
+inline Matrix6 operator+(Matrix6 value, Matrix6 matrix)
+{
+    return value += matrix;
+}
+inline Matrix6 operator-(Matrix6 value, Matrix6 matrix)
+{
+    return value -= matrix;
 }
 inline Vector6 operator+(Vector6 value, const Vector6 &vector)
 {
