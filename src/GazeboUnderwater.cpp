@@ -148,6 +148,13 @@ namespace gazebo_underwater
         extra_inertia += "0 0 0 0 100 0\n";
         extra_inertia += "0 0 0 0 0 100";
         addedInertia = convertToMatrix(getParameter<string>("added_inertia","Kg, Kg.m2", extra_inertia));
+
+        Matrix6 gzInertia;
+        gzInertia.top_left = modelInertial.GetMass() * math::Matrix3::IDENTITY;
+        gzInertia.bottom_right = modelInertial.GetMOI();
+        Matrix6 sum_inertia = gzInertia + addedInertia;
+        // gzInertia should be inversible
+        inverseInertia = sum_inertia.Inverse();
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
