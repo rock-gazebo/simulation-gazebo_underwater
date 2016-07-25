@@ -21,7 +21,6 @@ namespace gazebo_underwater
             void applyDamp();
             void applyCoriolisAddedInertia();
             void applyCompensatedEffort();
-            void applyEffortAddedInertia();
             ModelPtr getModel(WorldPtr world, sdf::ElementPtr sdf) const;
             LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();

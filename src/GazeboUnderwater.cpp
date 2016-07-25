@@ -154,20 +154,15 @@ namespace gazebo_underwater
     {
         applyBuoyancy();
         applyDamp();
-        applyCoriolisAddedInertia();
-        applyEffortAddedInertia();
+        // applyCoriolisAddedInertia();
     }
 
     void GazeboUnderwater::applyDamp()
     {
-        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
-        double distanceToSurface = waterLevel - cogPosition.z;
-        // Define damping as proportional to the submersed volume
-        double submersedRatio = calculateSubmersedRatio(distanceToSurface);
+        double distanceToSurface = waterLevel - link->GetWorldPose().pos.z;
 
         if( distanceToSurface > 0 )
         {
-            math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
             Vector6 vel = getModelFrameVelocities();
 
             Vector6 damp;
@@ -189,11 +184,12 @@ namespace gazebo_underwater
             }
             else
               gzthrow("GazeboUnderwater: Damping Parameter has wrong dimension!");
-            // Define damping as proportional to the submersed volume
-            damp *= -submersedRatio;
+            // Define damping as proportional to the submerged volume.
+            // Add minus for indicate resistence efforts.
+            damp *= -calculateSubmersedRatio(distanceToSurface);
 
-            link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(damp.top),cogPosition);
-            link->AddTorque( modelQuaternion.RotateVectorReverse(damp.bottom) );
+            link->AddLinkForce(damp.top, modelInertial.GetCoG());
+            link->AddRelativeTorque(damp.bottom);
            }
        }
 
@@ -250,25 +246,8 @@ namespace gazebo_underwater
         Vector6 coriloisEffect( prod.top.Cross(velocities.bottom),
                     prod.top.Cross(velocities.top) + prod.bottom.Cross(velocities.bottom));
 
-        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
-        math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
-        link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(coriloisEffect.top),cogPosition);
-        link->AddTorque( modelQuaternion.RotateVectorReverse(coriloisEffect.bottom));
-    }
-
-    void GazeboUnderwater::applyEffortAddedInertia()
-    {   //Remove the effect of the Added Inertia, using the acceleration of previous step.
-        math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
-        Vector6 acceleration;
-        acceleration.top = modelQuaternion.RotateVector( link->GetWorldLinearAccel() );
-        acceleration.bottom = modelQuaternion.RotateVector( link->GetWorldAngularAccel() );
-
-        Vector6 addedInertiaEffect = addedInertia * acceleration;
-        addedInertiaEffect *= -1;
-
-        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
-        link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(addedInertiaEffect.top),cogPosition);
-        link->AddTorque( modelQuaternion.RotateVectorReverse(addedInertiaEffect.bottom));
+        link->AddLinkForce(coriloisEffect.top, modelInertial.GetCoG());
+        link->AddRelativeTorque(coriloisEffect.bottom);
     }
 
     std::vector<Matrix6> GazeboUnderwater::convertToMatrices(const std::string &matrices)
@@ -313,14 +292,11 @@ namespace gazebo_underwater
 
     Vector6 GazeboUnderwater::getModelFrameVelocities()
     {
+        Vector6 velocities;
         // Calculates the difference between the model and fluid velocity relative to the world frame
         math::Vector3 velocityDifference = link->GetWorldLinearVel() - fluidVelocity;
-        math::Vector3 angularVelocity = link->GetWorldAngularVel();
-
-        math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
-        Vector6 velocities;
-        velocities.top = modelQuaternion.RotateVector( velocityDifference );
-        velocities.bottom = modelQuaternion.RotateVector( angularVelocity );
+        velocities.top = link->GetWorldPose().rot.RotateVectorReverse( velocityDifference );
+        velocities.bottom = link->GetRelativeAngularVel();
         return velocities;
     }
 
