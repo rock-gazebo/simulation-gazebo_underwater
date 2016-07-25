@@ -28,7 +28,7 @@ namespace gazebo_underwater
             template <typename T>
             T getParameter(std::string parameter_name, std::string dimension, T default_value) const;
             double calculateSubmersedRatio(double) const;
-            double computeModelMass(ModelPtr model) const;
+            Inertial computeModelInertial(ModelPtr model) const;
             Vector6 getModelFrameVelocities();
 
             std::vector<Matrix6> convertToMatrices(const std::string &matrices);
@@ -37,6 +37,7 @@ namespace gazebo_underwater
             WorldPtr world;
             ModelPtr model;
             LinkPtr link;
+            Inertial modelInertial;
 
             sdf::ElementPtr sdf;
             std::vector<gazebo::event::ConnectionPtr> eventHandler;

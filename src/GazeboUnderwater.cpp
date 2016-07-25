@@ -93,25 +93,38 @@ namespace gazebo_underwater
         }
     }
 
-    double GazeboUnderwater::computeModelMass(physics::ModelPtr model) const
+    physics::Inertial GazeboUnderwater::computeModelInertial(physics::ModelPtr model) const
     {
-        double mass = 0;
+        Inertial inertial(0);
+        inertial.SetMOI(math::Matrix3::ZERO);
+        Inertial temp;
         physics::Link_V links = model->GetLinks();
         for (physics::Link_V::iterator it = links.begin(); it != links.end(); ++it)
-            mass += (*it)->GetInertial()->GetMass();
-        return mass;
+            if(!(*it)->GetKinematic())
+            {
+                // Set Inertial's CoG related with the parent link
+                temp = *(*it)->GetInertial();
+                math::Pose pose = (*it)->GetRelativePose();
+                pose.pos += pose.rot.RotateVector(temp.GetCoG());
+                temp.SetCoG(pose);
+                inertial += temp;
+            }
+        return inertial;
     }
 
     void GazeboUnderwater::loadParameters(void)
     {
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
+        modelInertial = computeModelInertial(model);
 
         // buoyancy must be the difference between the buoyancy when the model is completely submersed and the model weight
         buoyancy = getParameter<double>("buoyancy","N", 5);
-        buoyancy = abs(buoyancy) + computeModelMass(model) * world->GetPhysicsEngine()->GetGravity().GetLength();
+        buoyancy = abs(buoyancy) + modelInertial.GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength();
+        // centerOfBuoyancy must be positioned related to the model's center of gravity.
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
+        centerOfBuoyancy += modelInertial.GetCoG();
         std::string damp_matrices;
         damp_matrices += "50 0 0 0 0 0\n";
         damp_matrices += "0 50 0 0 0 0\n";
@@ -186,17 +199,15 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::applyBuoyancy()
     {
-        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
-        double distanceToSurface = waterLevel - cogPosition.z;
-        math::Vector3 linkBuoyancy;
-
+        double distanceToSurface = waterLevel - link->GetWorldPose().pos.z;
         // The buoyancy is proportional no the submersed volume
         double submersedRatio = calculateSubmersedRatio(distanceToSurface);
-        linkBuoyancy = math::Vector3(0,0,submersedRatio * buoyancy );
 
-        math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
-                link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
-        link->AddForceAtWorldPosition(linkBuoyancy,cobPosition);
+        math::Vector3 modelBuoyancy = math::Vector3(0,0,submersedRatio * buoyancy );
+        math::Vector3 cobPosition = link->GetWorldPose().pos +
+                link->GetWorldPose().rot.RotateVector(centerOfBuoyancy);
+
+        link->AddForceAtWorldPosition(modelBuoyancy,cobPosition);
     }
 
     double GazeboUnderwater::calculateSubmersedRatio(double distanceToSurface) const
@@ -206,19 +217,15 @@ namespace gazebo_underwater
         double submersedVolume = 0.0;
 
         if(distanceToSurface <= 0.0)
-        {
             submersedVolume = 0.0;
-        }else{
+        else{
             if(distanceToSurface <= (linkBoudingBox.GetZLength())/2.0 )
-            {
                 submersedVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() *
                         ( linkBoudingBox.GetZLength()/2.0 + distanceToSurface );
-            }else{
+            else
                 submersedVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() *
                         linkBoudingBox.GetZLength();
-            }
         }
-        // The submersed volume is given in percentage
         return submersedVolume/linkVolume;
     }
 
