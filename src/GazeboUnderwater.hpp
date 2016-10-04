@@ -50,8 +50,8 @@ namespace gazebo_underwater
             // linear velocities x,y,z followed by the angular velocities x,y,z
             std::vector<Matrix6> dampingCoefficients;
 
-            // inverse inertia matrix, (gzInertia + addedInertia)^-1
-            Matrix6 inverseInertia;
+            // M*(M+Ma)⁻¹ - I
+            Matrix6 compensatedInertia;
 
             gazebo::math::Vector3 centerOfBuoyancy;
             gazebo::math::Vector3 fluidVelocity;

@@ -62,6 +62,14 @@ struct Matrix6
         this->bottom_right = this->bottom_right * value;
         return *this;
     }
+    inline Matrix6& operator*=(const Matrix6 &value)
+    {
+        this->top_left = this->top_left * value.top_left + this->top_right * value.bottom_left;
+        this->top_right = this->top_left * value.top_right + this->top_right * value.bottom_right;
+        this->bottom_left = this->bottom_left * value.top_left + this->bottom_right * value.bottom_left;
+        this->bottom_right = this->bottom_left * value.top_right + this->bottom_right * value.bottom_right;
+        return *this;
+    }
     Matrix6 Inverse()
     {
         /** Inversion by blocks
@@ -127,7 +135,10 @@ Vector6 operator*(const Matrix6 &matrix, const Vector6 &vector)
     result.bottom = matrix.bottom_left*vector.top + matrix.bottom_right*vector.bottom;
     return result;
 };
-
+inline Matrix6 operator*(Matrix6 value, const Matrix6 &matrix)
+{
+    return value *= matrix;
+}
 inline Matrix6 operator*(double scalar, Matrix6 value)
 {
     return value *= scalar;
@@ -136,11 +147,11 @@ inline Matrix6 operator*(Matrix6 value, double scalar)
 {
     return value *= scalar;
 }
-inline Matrix6 operator+(Matrix6 value, Matrix6 matrix)
+inline Matrix6 operator+(Matrix6 value, const Matrix6 &matrix)
 {
     return value += matrix;
 }
-inline Matrix6 operator-(Matrix6 value, Matrix6 matrix)
+inline Matrix6 operator-(Matrix6 value, const Matrix6 &matrix)
 {
     return value -= matrix;
 }

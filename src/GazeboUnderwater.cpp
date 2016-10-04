@@ -126,35 +126,53 @@ namespace gazebo_underwater
                 math::Vector3(0, 0, 0.15));
         centerOfBuoyancy += modelInertial.GetCoG();
         std::string damp_matrices;
-        damp_matrices += "50 0 0 0 0 0\n";
-        damp_matrices += "0 50 0 0 0 0\n";
-        damp_matrices += "0 0 50 0 0 0\n";
-        damp_matrices += "0 0 0 45 0 0\n";
-        damp_matrices += "0 0 0 0 45 0\n";
-        damp_matrices += "0 0 0 0 0 45\n\n";
-        damp_matrices += "40 0 0 0 0 0\n";
-        damp_matrices += "0 40 0 0 0 0\n";
-        damp_matrices += "0 0 40 0 0 0\n";
-        damp_matrices += "0 0 0 35 0 0\n";
-        damp_matrices += "0 0 0 0 35 0\n";
+        damp_matrices += "50 0 0 0 0 0;";
+        damp_matrices += "0 50 0 0 0 0;";
+        damp_matrices += "0 0 50 0 0 0;";
+        damp_matrices += "0 0 0 45 0 0;";
+        damp_matrices += "0 0 0 0 45 0;";
+        damp_matrices += "0 0 0 0 0 45\n";
+        damp_matrices += "40 0 0 0 0 0;";
+        damp_matrices += "0 40 0 0 0 0;";
+        damp_matrices += "0 0 40 0 0 0;";
+        damp_matrices += "0 0 0 35 0 0;";
+        damp_matrices += "0 0 0 0 35 0;";
         damp_matrices += "0 0 0 0 0 35";
         dampingCoefficients = convertToMatrices(getParameter<string>("damping_coefficients","N/vel^n / vel^n={m/s, rad/s, m2/s2. rad2/s2}",damp_matrices));
 
         std::string extra_inertia;
-        extra_inertia += "100 0 0 0 0 0\n";
-        extra_inertia += "0 100 0 0 0 0\n";
-        extra_inertia += "0 0 100 0 0 0\n";
-        extra_inertia += "0 0 0 100 0 0\n";
-        extra_inertia += "0 0 0 0 100 0\n";
-        extra_inertia += "0 0 0 0 0 100";
+        extra_inertia += "0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0";
         addedInertia = convertToMatrix(getParameter<string>("added_inertia","Kg, Kg.m2", extra_inertia));
 
         Matrix6 gzInertia;
         gzInertia.top_left = modelInertial.GetMass() * math::Matrix3::IDENTITY;
         gzInertia.bottom_right = modelInertial.GetMOI();
         Matrix6 sum_inertia = gzInertia + addedInertia;
+        std::cout<<"inertia top_left: " << sum_inertia.top_left << std::endl << std::endl;
+        std::cout<<"inertia top_right: " << sum_inertia.top_right << std::endl << std::endl;
+        std::cout<<"inertia bottom_left: " << sum_inertia.bottom_left << std::endl << std::endl;
+        std::cout<<"inertia bottom_right: " << sum_inertia.bottom_right << std::endl << std::endl;
+
+        for (int i=0; i<dampingCoefficients.size(); i++)
+        {   std::cout <<"Damping["<<i<<"]" <<std::endl;
+            std::cout<<"damp["<<i<<"] top_left: "<< dampingCoefficients[i].top_left << std::endl << std::endl;
+            std::cout<<"damp["<<i<<"] top_right: "<< dampingCoefficients[i].top_right << std::endl << std::endl;
+            std::cout<<"damp["<<i<<"] bottom_left: "<< dampingCoefficients[i].bottom_left << std::endl << std::endl;
+            std::cout<<"damp["<<i<<"] bottom_right: "<< dampingCoefficients[i].bottom_right << std::endl << std::endl;
+        }
+
+        std::cout << "weight: "<< modelInertial.GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength() << std::endl;
+        std::cout << "buoy: "<< buoyancy << std::endl;
+        std::cout << "CoG: "<< modelInertial.GetCoG() << std::endl;
         // gzInertia should be inversible
-        inverseInertia = sum_inertia.Inverse();
+        Matrix6 inverseInertia = sum_inertia.Inverse();
+        Matrix6 identity(math::Matrix3::IDENTITY, math::Matrix3::ZERO, math::Matrix3::ZERO, math::Matrix3::IDENTITY);
+        compensatedInertia = gzInertia * inverseInertia - identity;
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
@@ -162,6 +180,7 @@ namespace gazebo_underwater
         applyBuoyancy();
         applyDamp();
         // applyCoriolisAddedInertia();
+        // applyCompensatedEffort();
     }
 
     void GazeboUnderwater::applyDamp()
@@ -176,7 +195,7 @@ namespace gazebo_underwater
             if(dampingCoefficients.size() == 2)
             {
                 Vector6 vel_square(vel.top*vel.top.GetAbs(), vel.bottom*vel.bottom.GetAbs());
-                damp = dampingCoefficients[0] * vel - dampingCoefficients[1] * vel_square;
+                damp = dampingCoefficients[0] * vel + dampingCoefficients[1] * vel_square;
             }
             else if(dampingCoefficients.size() == 6)
             {
@@ -253,15 +272,47 @@ namespace gazebo_underwater
         Vector6 coriloisEffect( prod.top.Cross(velocities.bottom),
                     prod.top.Cross(velocities.top) + prod.bottom.Cross(velocities.bottom));
 
-        link->AddLinkForce(coriloisEffect.top, modelInertial.GetCoG());
-        link->AddRelativeTorque(coriloisEffect.bottom);
+        // link->AddLinkForce(coriloisEffect.top, modelInertial.GetCoG());
+        // link->AddRelativeTorque(coriloisEffect.bottom);
+    }
+
+    void GazeboUnderwater::applyCompensatedEffort()
+    {
+        /**
+        * AUV acceleration
+        *  acceleration = (M+Ma)^-1 * (Thruster - Coriolis - Coriolis_added_mass - Buoyancy - Damping)
+        *  acceleration = (M+Ma)^-1 * F; F = (Thruster - Coriolis - Coriolis_added_mass - Buoyancy - Damping)
+        *
+        * Acceleration computed by Gazebo
+        *  acceleration' = M^-1 * F'
+        *
+        * acceleration = acceleration'
+        * (M+Ma)^-1 * F = M^-1 * F'
+        * F' = F + C  => (M+Ma)^-1 * F = M^-1 * (F + C)
+        * C = (M*(M+Ma)^-1 - I) * F; F = GetForceTorque()??
+        *
+        * Compesanted efforts C will make Gazebo compute the expected acceleration, ignoring the added mass matrix
+        */
+        // Force in link's CoG. The same force is at the model's CoG, plus a torque
+        math::Vector3 force = link->GetWorldPose().rot.RotateVectorReverse(link->GetWorldForce());
+        math::Vector3 torque = link->GetWorldPose().rot.RotateVectorReverse(link->GetWorldTorque())
+                - force.Cross(modelInertial.GetCoG() - link->GetInertial()->GetCoG());
+        Vector6 efforts(force, torque);
+        Vector6 compEfforts = compensatedInertia * efforts;
+
+        math::Vector3 cogPosition = link->GetWorldPose().pos +
+                link->GetWorldPose().rot.RotateVector(modelInertial.GetCoG());
+
+        // link->AddLinkForce(compEfforts.top, modelInertial.GetCoG());
+        // link->AddRelativeTorque(compEfforts.bottom);
     }
 
     std::vector<Matrix6> GazeboUnderwater::convertToMatrices(const std::string &matrices)
     {
         std::vector<Matrix6> ret;
         std::vector<std::string> splitted;
-        boost::algorithm::split_regex( splitted, matrices, boost::regex( "\n\n" ));
+        boost::algorithm::split_regex( splitted, matrices, boost::regex( "\n" ));
+        std::cout << "/* matrices */ "<< splitted.size()<< std::endl;
         if (splitted.size() != 2 && splitted.size() != 6)
             gzthrow("GazeboUnderwater: Damping Parameters has not 2 or 6 matrices!");
         for( size_t i=0; i<splitted.size(); i++)
@@ -273,15 +324,17 @@ namespace gazebo_underwater
     {
         Matrix6 ret;
         std::vector<std::string> splitted;
-        boost::split( splitted, matrix, boost::is_any_of( "\n" ), boost::token_compress_on );
+        boost::split( splitted, matrix, boost::is_any_of( ";" ), boost::token_compress_on );
+        std::cout << "/* matrix lines */ "<< splitted.size()<< std::endl;
         if (splitted.size() != 6)
             gzthrow("GazeboUnderwater: Matrix has not 6 lines!");
         for( size_t i=0; i<6; i++)
         {
             std::vector<std::string> line;
             boost::split( line, splitted[i], boost::is_any_of( " " ), boost::token_compress_on );
+            std::cout << "/* matrix columns */ "<< line.size()<< std::endl;
             if (line.size() != 6)
-                gzthrow("GazeboUnderwater: Line has not 6 columns!");
+                gzthrow("GazeboUnderwater: Line has not 6 columns!" + splitted.size());
             for(size_t j=0; j<6; j++)
             {
                 if(i<3 && j<3)
