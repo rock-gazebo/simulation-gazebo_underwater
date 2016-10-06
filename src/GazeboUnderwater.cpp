@@ -179,8 +179,8 @@ namespace gazebo_underwater
     {
         applyBuoyancy();
         applyDamp();
-        // applyCoriolisAddedInertia();
-        // applyCompensatedEffort();
+        applyCoriolisAddedInertia();
+        applyCompensatedEffort();
     }
 
     void GazeboUnderwater::applyDamp()
@@ -272,8 +272,8 @@ namespace gazebo_underwater
         Vector6 coriloisEffect( prod.top.Cross(velocities.bottom),
                     prod.top.Cross(velocities.top) + prod.bottom.Cross(velocities.bottom));
 
-        // link->AddLinkForce(coriloisEffect.top, modelInertial.GetCoG());
-        // link->AddRelativeTorque(coriloisEffect.bottom);
+        link->AddLinkForce(coriloisEffect.top, modelInertial.GetCoG());
+        link->AddRelativeTorque(coriloisEffect.bottom);
     }
 
     void GazeboUnderwater::applyCompensatedEffort()
@@ -303,8 +303,8 @@ namespace gazebo_underwater
         math::Vector3 cogPosition = link->GetWorldPose().pos +
                 link->GetWorldPose().rot.RotateVector(modelInertial.GetCoG());
 
-        // link->AddLinkForce(compEfforts.top, modelInertial.GetCoG());
-        // link->AddRelativeTorque(compEfforts.bottom);
+        link->AddLinkForce(compEfforts.top, modelInertial.GetCoG());
+        link->AddRelativeTorque(compEfforts.bottom);
     }
 
     std::vector<Matrix6> GazeboUnderwater::convertToMatrices(const std::string &matrices)
