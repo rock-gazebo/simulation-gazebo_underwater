@@ -37,6 +37,7 @@ namespace gazebo_underwater
             ModelPtr model;
             LinkPtr link;
             Inertial modelInertial;
+            Vector6 previousCompensatedEffort;
 
             sdf::ElementPtr sdf;
             std::vector<gazebo::event::ConnectionPtr> eventHandler;
