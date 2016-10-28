@@ -149,34 +149,33 @@ namespace gazebo_underwater
         extra_inertia += "0 0 0 0 0 0";
         addedInertia = convertToMatrix(getParameter<string>("added_inertia","Kg, Kg.m2", extra_inertia));
 
-        Matrix6 gzInertia;
         gzInertia.top_left = modelInertial.GetMass() * math::Matrix3::IDENTITY;
         gzInertia.bottom_right = modelInertial.GetMOI();
         Matrix6 sum_inertia = gzInertia + addedInertia;
-        std::cout<<"inertia top_left: " << sum_inertia.top_left << std::endl << std::endl;
-        std::cout<<"inertia top_right: " << sum_inertia.top_right << std::endl << std::endl;
-        std::cout<<"inertia bottom_left: " << sum_inertia.bottom_left << std::endl << std::endl;
-        std::cout<<"inertia bottom_right: " << sum_inertia.bottom_right << std::endl << std::endl;
+        gzmsg << "GazeboUnderwater: Inertia (Model_Inertia + Added_Inertia)" << endl;
+        gzmsg << "Inertia top_left:     " << endl << sum_inertia.top_left;
+        gzmsg << "Inertia top_right:    " << endl << sum_inertia.top_right;
+        gzmsg << "Inertia bottom_left:  " << endl << sum_inertia.bottom_left;
+        gzmsg << "Inertia bottom_right: " << endl << sum_inertia.bottom_right << endl;
 
         for (int i=0; i<dampingCoefficients.size(); i++)
-        {   std::cout <<"Damping["<<i<<"]" <<std::endl;
-            std::cout<<"damp["<<i<<"] top_left: "<< dampingCoefficients[i].top_left << std::endl << std::endl;
-            std::cout<<"damp["<<i<<"] top_right: "<< dampingCoefficients[i].top_right << std::endl << std::endl;
-            std::cout<<"damp["<<i<<"] bottom_left: "<< dampingCoefficients[i].bottom_left << std::endl << std::endl;
-            std::cout<<"damp["<<i<<"] bottom_right: "<< dampingCoefficients[i].bottom_right << std::endl << std::endl;
+        {   gzmsg <<"GazeboUnderwater: Damping["<<i<<"]" <<std::endl;
+            gzmsg <<"Damping["<<i<<"] top_left:     " << endl << dampingCoefficients[i].top_left;
+            gzmsg <<"Damping["<<i<<"] top_right:    " << endl << dampingCoefficients[i].top_right;
+            gzmsg <<"Damping["<<i<<"] bottom_left:  " << endl << dampingCoefficients[i].bottom_left;
+            gzmsg <<"Damping["<<i<<"] bottom_right: " << endl << dampingCoefficients[i].bottom_right << endl;
         }
 
-        std::cout << "weight: "<< modelInertial.GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength() << std::endl;
-        std::cout << "buoy: "<< buoyancy << std::endl;
-        std::cout << "CoG: "<< modelInertial.GetCoG() << std::endl;
+        gzmsg << "GazeboUnderwater: Model's weight: "   << modelInertial.GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength() << " N" << endl;
+        gzmsg << "GazeboUnderwater: Model's CoG: ("     << modelInertial.GetCoG() << ") meters" << endl;
+        gzmsg << "GazeboUnderwater: Model's buoyancy: " << buoyancy << " N" << endl;
+        gzmsg << "GazeboUnderwater: Model's CoB: ("     << centerOfBuoyancy << ") meters "<< endl;
 
         Matrix6 identity(math::Matrix3::IDENTITY, math::Matrix3::ZERO, math::Matrix3::ZERO, math::Matrix3::IDENTITY);
-
-        // gzInertia should be inversible
+        // gzInertia is symmetric positive definite (SPD) matrix.
+        // addedInertia should be symmetric positive semidefinite
+        // sum_inertia is positive definite so it has inverse.
         compensatedInertia = gzInertia * sum_inertia.Inverse() - identity;
-
-        previousCompensatedEffort.top = math::Vector3::Zero;
-        previousCompensatedEffort.bottom = math::Vector3::Zero;
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
@@ -226,7 +225,7 @@ namespace gazebo_underwater
     void GazeboUnderwater::applyBuoyancy()
     {
         double distanceToSurface = waterLevel - link->GetWorldPose().pos.z;
-        // The buoyancy is proportional no the submersed volume
+        // The buoyancy is proportional to the submersed volume
         double submersedRatio = calculateSubmersedRatio(distanceToSurface);
 
         math::Vector3 modelBuoyancy = math::Vector3(0,0,submersedRatio * buoyancy );
@@ -283,30 +282,47 @@ namespace gazebo_underwater
     void GazeboUnderwater::applyCompensatedEffort()
     {
         /**
-        * AUV acceleration
-        *  acceleration = (M+Ma)^-1 * (Thruster - Coriolis - Coriolis_added_mass - Buoyancy - Damping)
-        *  acceleration = (M+Ma)^-1 * F; F = (Thruster - Coriolis - Coriolis_added_mass - Buoyancy - Damping)
-        *
-        * Acceleration computed by Gazebo
-        *  acceleration' = M^-1 * F'
-        *
-        * acceleration = acceleration'
-        * (M+Ma)^-1 * F = M^-1 * F'
-        * F' = F + C  => (M+Ma)^-1 * F = M^-1 * (F + C)
-        * C = (M*(M+Ma)^-1 - I) * F; F = GetForceTorque()??
-        *
-        * Compesanted efforts C will make Gazebo compute the expected acceleration, ignoring the added mass matrix
-        */
-        // Force in link's CoG. The same force is at the model's CoG, plus a torque
-        // math::Vector3 force = link->GetWorldPose().rot.RotateVectorReverse(link->GetWorldForce());
-        // math::Vector3 torque = link->GetWorldPose().rot.RotateVectorReverse(link->GetWorldTorque())
-        //         + force.Cross(modelInertial.GetCoG() - link->GetInertial()->GetCoG());
-
+         * --AUV acceleration--
+         * acceleration = (M+Ma)^-1 *
+         * (Thruster + Coriolis + Coriolis_added_mass + Gravity_effect - Damping)
+         * acceleration = (M+Ma)^-1 * F;
+         * F =
+         * (Thruster + Coriolis + Coriolis_added_mass + Gravity_effect - Damping)
+         *
+         * --Acceleration computed by Gazebo--
+         *  acceleration' = M^-1 * F'
+         *
+         * -- Make accelerations equal--
+         * acceleration = acceleration'
+         * (M+Ma)^-1 * F = M^-1 * F'
+         * F' = F + C  => (M+Ma)^-1 * F = M^-1 * (F + C)
+         * C = (M*(M+Ma)^-1 - I) * F;
+         *
+         * Gazebo provides the methods GetForce() and GetTorques() that provides
+         * the efforts applied in previous step. Regarding the Coriolis, it is
+         * intrisic to Gazebo's physics, once all the forces are converted and
+         * applied in world-frame, so it doesn't count in the GetEffort methods.
+         * F'[k-1] = GetEffort + Coriolis
+         * C[k] = (M*(M+Ma)^-1 - I) * F[k-1]
+         * F[k-1] = (F'[k-1] - C[k-1])
+         *
+         * Compesanted efforts C will make Gazebo compute the expected
+         * acceleration, ignoring the added mass matrix
+         */
         math::Vector3 force = link->GetRelativeForce();
+        // Consider the torque related to force in link's CoG in the model's CoG
         math::Vector3 torque = link->GetRelativeTorque()
             + (link->GetInertial()->GetCoG() - modelInertial.GetCoG()).Cross(force);
 
+        // Consider Coriolis of model's inertia
+        Vector6 velocities = getModelFrameVelocities();
+        Vector6 momentum = gzInertia * velocities;
+        Vector6 coriloisEffect( momentum.top.Cross(velocities.bottom),
+                    momentum.top.Cross(velocities.top) + momentum.bottom.Cross(velocities.bottom));
+
         Vector6 efforts(force, torque);
+        efforts += coriloisEffect;
+        // Remove influence of previous compensated effort
         Vector6 compEfforts = compensatedInertia * (efforts - previousCompensatedEffort);
 
         previousCompensatedEffort = compEfforts;
@@ -320,7 +336,6 @@ namespace gazebo_underwater
         std::vector<Matrix6> ret;
         std::vector<std::string> splitted;
         boost::algorithm::split_regex( splitted, matrices, boost::regex( "\n" ));
-        std::cout << "/* matrices */ "<< splitted.size()<< std::endl;
         if (splitted.size() != 2 && splitted.size() != 6)
             gzthrow("GazeboUnderwater: Damping Parameters has not 2 or 6 matrices!");
         for( size_t i=0; i<splitted.size(); i++)
@@ -333,14 +348,12 @@ namespace gazebo_underwater
         Matrix6 ret;
         std::vector<std::string> splitted;
         boost::split( splitted, matrix, boost::is_any_of( ";" ), boost::token_compress_on );
-        std::cout << "/* matrix lines */ "<< splitted.size()<< std::endl;
         if (splitted.size() != 6)
             gzthrow("GazeboUnderwater: Matrix has not 6 lines!");
         for( size_t i=0; i<6; i++)
         {
             std::vector<std::string> line;
             boost::split( line, splitted[i], boost::is_any_of( " " ), boost::token_compress_on );
-            std::cout << "/* matrix columns */ "<< line.size()<< std::endl;
             if (line.size() != 6)
                 gzthrow("GazeboUnderwater: Line has not 6 columns!" + splitted.size());
             for(size_t j=0; j<6; j++)

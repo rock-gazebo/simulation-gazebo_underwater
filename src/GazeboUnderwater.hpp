@@ -42,17 +42,19 @@ namespace gazebo_underwater
             sdf::ElementPtr sdf;
             std::vector<gazebo::event::ConnectionPtr> eventHandler;
 
-            // Added intertia of a rigid body robot
+            // Inertia of Gazebo's model (M)
+            Matrix6 gzInertia;
+            // Added intertia of a rigid body robot (Ma)
             Matrix6 addedInertia;
+            // M*(M+Ma)⁻¹ - I
+            Matrix6 compensatedInertia;
+
             // Matrices of dampings.
             // If vector has two elements, they will be the linear and quadratic
             // dampin respectivly.
             // If vector has 6 elements they will be quadratic damping of
             // linear velocities x,y,z followed by the angular velocities x,y,z
             std::vector<Matrix6> dampingCoefficients;
-
-            // M*(M+Ma)⁻¹ - I
-            Matrix6 compensatedInertia;
 
             gazebo::math::Vector3 centerOfBuoyancy;
             gazebo::math::Vector3 fluidVelocity;
