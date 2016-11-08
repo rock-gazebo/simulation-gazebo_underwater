@@ -163,6 +163,14 @@ inline Vector6 operator-(Vector6 value, const Vector6 &vector)
 {
     return value -= vector;
 }
+inline Vector6 operator*(double scalar, Vector6 vector)
+{
+    return vector *= scalar;
+}
+inline Vector6 operator*(Vector6 vector, double scalar)
+{
+    return vector *= scalar;
+}
 
 }
 #endif
