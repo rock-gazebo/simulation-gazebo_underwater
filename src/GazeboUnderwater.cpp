@@ -305,6 +305,11 @@ namespace gazebo_underwater
          * F'[k-1] = GetEffort + Coriolis
          * C[k] = (M*(M+Ma)^-1 - I) * F[k-1]
          * F[k-1] = (F'[k-1] - C[k-1])
+         * Knowing that an error of effort is present:
+         * F'[k] = F[k] + C[k] = F[k] + (M*(M+Ma)^-1 - I) * F[k-1]
+         * F'[k] = M(M+Ma)^-1*F[k-1] + deltaF[k]; deltaF[k] = F[k]-F[k-1]
+         * It is removed in the next step:
+         * F'[k] = M(M+Ma)^-1*F[k-1] + deltaF[k] - deltaF[k-1]
          *
          * Compesanted efforts C will make Gazebo compute the expected
          * acceleration, ignoring the added mass matrix
@@ -323,8 +328,12 @@ namespace gazebo_underwater
         Vector6 efforts(force, torque);
         efforts += coriloisEffect;
         // Remove influence of previous compensated effort
-        Vector6 compEfforts = compensatedInertia * (efforts - previousCompensatedEffort);
+        pastEffort1 = efforts - previousCompensatedEffort;
+        Vector6 compEfforts = compensatedInertia * pastEffort1;
+        // Remove influence of previous error
+        compEfforts -= (pastEffort1 - pastEffort2);
 
+        pastEffort2 = pastEffort1;
         previousCompensatedEffort = compEfforts;
 
         link->AddLinkForce(compEfforts.top, modelInertial.GetCoG());
