@@ -1,5 +1,9 @@
 #include "GazeboUnderwater.hpp"
 #include <gazebo/common/Exception.hh>
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/regex.hpp>
+#include <boost/regex.hpp>
+#include <stdlib.h>
 
 using namespace std;
 using namespace gazebo;
@@ -89,90 +93,146 @@ namespace gazebo_underwater
         }
     }
 
-    double GazeboUnderwater::computeModelMass(physics::ModelPtr model) const
+    physics::Inertial GazeboUnderwater::computeModelInertial(physics::ModelPtr model) const
     {
-        double mass = 0;
+        Inertial inertial(0);
+        inertial.SetMOI(math::Matrix3::ZERO);
+        Inertial temp;
         physics::Link_V links = model->GetLinks();
         for (physics::Link_V::iterator it = links.begin(); it != links.end(); ++it)
-            mass += (*it)->GetInertial()->GetMass();
-        return mass;
+            if(!(*it)->GetKinematic())
+            {
+                // Set Inertial's CoG related with the parent link
+                temp = *(*it)->GetInertial();
+                math::Pose pose = (*it)->GetRelativePose();
+                pose.pos += pose.rot.RotateVector(temp.GetCoG());
+                temp.SetCoG(pose);
+                inertial += temp;
+            }
+        return inertial;
     }
 
     void GazeboUnderwater::loadParameters(void)
     {
         waterLevel = getParameter<double>("water_level","meters", 0.0);
         fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
-        linearDampCoefficients = getParameter<math::Vector3>("linear_damp_coefficients","N.s/m",
-                math::Vector3(50,50,50));
-        linearDampAngleCoefficients = getParameter<math::Vector3>("linear_damp_angle_coefficients","N.s",
-                math::Vector3(45,45,45));
-        quadraticDampCoefficients = getParameter<math::Vector3>("quadratic_damp_coefficients","N.s2/m2",
-                math::Vector3(40,40,40));
-        quadraticDampAngleCoefficients = getParameter<math::Vector3>("quadratic_damp_angle_coefficients","N.s2/m",
-                math::Vector3(35,35,35));
+        modelInertial = computeModelInertial(model);
+
         // buoyancy must be the difference between the buoyancy when the model is completely submersed and the model weight
         buoyancy = getParameter<double>("buoyancy","N", 5);
-        buoyancy = abs(buoyancy) + computeModelMass(model) * world->GetPhysicsEngine()->GetGravity().GetLength();
+        buoyancy = abs(buoyancy) + modelInertial.GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength();
+        // centerOfBuoyancy must be positioned related to the model's center of gravity.
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
+        centerOfBuoyancy += modelInertial.GetCoG();
+        std::string damp_matrices;
+        damp_matrices += "[50 0 0 0 0 0;";
+        damp_matrices += "0 50 0 0 0 0;";
+        damp_matrices += "0 0 50 0 0 0;";
+        damp_matrices += "0 0 0 45 0 0;";
+        damp_matrices += "0 0 0 0 45 0;";
+        damp_matrices += "0 0 0 0 0 45]";
+        damp_matrices += "[40 0 0 0 0 0;";
+        damp_matrices += "0 40 0 0 0 0;";
+        damp_matrices += "0 0 40 0 0 0;";
+        damp_matrices += "0 0 0 35 0 0;";
+        damp_matrices += "0 0 0 0 35 0;";
+        damp_matrices += "0 0 0 0 0 35]";
+        dampingCoefficients = convertToMatrices(getParameter<string>("damping_coefficients","N/vel^n / vel^n={m/s, rad/s, m2/s2. rad2/s2}",damp_matrices));
+
+        std::string extra_inertia;
+        extra_inertia += "[0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0;";
+        extra_inertia += "0 0 0 0 0 0]";
+        addedInertia = convertToMatrix(getParameter<string>("added_inertia","Kg, Kg.m2", extra_inertia));
+
+        gzInertia.top_left = modelInertial.GetMass() * math::Matrix3::IDENTITY;
+        gzInertia.bottom_right = modelInertial.GetMOI();
+        Matrix6 sum_inertia = gzInertia + addedInertia;
+        gzmsg << "GazeboUnderwater: Inertia (Model_Inertia + Added_Inertia)" << endl;
+        gzmsg << "Inertia top_left:     " << endl << sum_inertia.top_left;
+        gzmsg << "Inertia top_right:    " << endl << sum_inertia.top_right;
+        gzmsg << "Inertia bottom_left:  " << endl << sum_inertia.bottom_left;
+        gzmsg << "Inertia bottom_right: " << endl << sum_inertia.bottom_right << endl;
+
+        for (int i=0; i<dampingCoefficients.size(); i++)
+        {   gzmsg <<"GazeboUnderwater: Damping["<<i<<"]" <<std::endl;
+            gzmsg <<"Damping["<<i<<"] top_left:     " << endl << dampingCoefficients[i].top_left;
+            gzmsg <<"Damping["<<i<<"] top_right:    " << endl << dampingCoefficients[i].top_right;
+            gzmsg <<"Damping["<<i<<"] bottom_left:  " << endl << dampingCoefficients[i].bottom_left;
+            gzmsg <<"Damping["<<i<<"] bottom_right: " << endl << dampingCoefficients[i].bottom_right << endl;
+        }
+
+        gzmsg << "GazeboUnderwater: Model's weight: "   << modelInertial.GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength() << " N" << endl;
+        gzmsg << "GazeboUnderwater: Model's CoG: ("     << modelInertial.GetCoG() << ") meters" << endl;
+        gzmsg << "GazeboUnderwater: Model's buoyancy: " << buoyancy << " N" << endl;
+        gzmsg << "GazeboUnderwater: Model's CoB: ("     << centerOfBuoyancy << ") meters "<< endl;
+
+        Matrix6 identity(math::Matrix3::IDENTITY, math::Matrix3::ZERO, math::Matrix3::ZERO, math::Matrix3::IDENTITY);
+        // gzInertia is symmetric positive definite (SPD) matrix.
+        // addedInertia should be symmetric positive semidefinite
+        // sum_inertia is positive definite so it has inverse.
+        compensatedInertia = gzInertia * sum_inertia.Inverse() - identity;
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
     {
         applyBuoyancy();
-        applyViscousDamp();
+        applyDamp();
+        applyCoriolisAddedInertia();
+        applyCompensatedEffort();
     }
 
-    void GazeboUnderwater::applyViscousDamp()
+    void GazeboUnderwater::applyDamp()
     {
-        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
-        double distanceToSurface = waterLevel - cogPosition.z;
+        double distanceToSurface = waterLevel - link->GetWorldPose().pos.z;
+
         if( distanceToSurface > 0 )
         {
-            // Calculates the difference between the model and fluid velocity relative to the world frame
-            math::Vector3 velocityDifference = link->GetWorldLinearVel() - fluidVelocity;
-            math::Vector3 angularVelocity = link->GetWorldAngularVel();
+            Vector6 vel = getModelFrameVelocities();
 
-            // Get model quaternion and rotate velocity difference to get the velocity relative to the
-            // model frame. This velocity is necessary to calculate the drag forces.
-            // The drag forces have to be transformed to the world frame (with RotateVectorReverse),
-            // before being applied to the model.
-            // mf = model frame
-            math::Quaternion modelQuaternion = link->GetWorldCoGPose().rot;
-            math::Vector3 mfVelocity = modelQuaternion.RotateVector( velocityDifference );
-            math::Vector3 mfAngularVelocity = modelQuaternion.RotateVector( angularVelocity );
+            Vector6 damp;
+            if(dampingCoefficients.size() == 2)
+            {
+                Vector6 vel_square(vel.top*vel.top.GetAbs(), vel.bottom*vel.bottom.GetAbs());
+                damp = dampingCoefficients[0] * vel + dampingCoefficients[1] * vel_square;
+            }
+            else if(dampingCoefficients.size() == 6)
+            {
+                Matrix6 dampMatrix;
+                Vector6 vel_abs(vel.top.GetAbs(), vel.bottom.GetAbs());
+                for(size_t i=0; i < 3; i++)
+                {
+                    dampMatrix += dampingCoefficients[i] * vel_abs.top[i];
+                    dampMatrix += dampingCoefficients[i+3] * vel_abs.bottom[i];
+                }
+                damp = dampMatrix * vel;
+            }
+            else
+              gzthrow("GazeboUnderwater: Damping Parameter has wrong dimension!");
+            // Define damping as proportional to the submerged volume.
+            // Add minus for indicate resistence efforts.
+            damp *= -calculateSubmersedRatio(distanceToSurface);
 
-            // Linear damp
-            math::Vector3 linearDamp = - linearDampCoefficients * mfVelocity;
-            link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(linearDamp),cogPosition);
-
-            math::Vector3 linearAngularDamp = - linearDampAngleCoefficients * mfAngularVelocity;
-            link->AddTorque( modelQuaternion.RotateVectorReverse(linearAngularDamp) );
-
-            // Quadratic damp
-            math::Vector3 quadraticDamp = - quadraticDampCoefficients *
-                     mfVelocity.GetAbs() * mfVelocity;
-            link->AddForceAtWorldPosition(modelQuaternion.RotateVectorReverse(quadraticDamp),cogPosition);
-
-            math::Vector3 quadraticAngularDamp = - quadraticDampAngleCoefficients *
-                     mfAngularVelocity.GetAbs() * mfAngularVelocity;
-            link->AddTorque( modelQuaternion.RotateVectorReverse(quadraticAngularDamp) );
-        }
-    }
+            link->AddLinkForce(damp.top, modelInertial.GetCoG());
+            link->AddRelativeTorque(damp.bottom);
+           }
+       }
 
     void GazeboUnderwater::applyBuoyancy()
     {
-        math::Vector3 cogPosition = link->GetWorldCoGPose().pos;
-        double distanceToSurface = waterLevel - cogPosition.z;
-        math::Vector3 linkBuoyancy;
-
-        // The buoyancy is proportional no the submersed volume
+        double distanceToSurface = waterLevel - link->GetWorldPose().pos.z;
+        // The buoyancy is proportional to the submersed volume
         double submersedRatio = calculateSubmersedRatio(distanceToSurface);
-        linkBuoyancy = math::Vector3(0,0,submersedRatio * buoyancy );
 
-        math::Vector3 cobPosition = link->GetWorldCoGPose().pos +
-                link->GetWorldCoGPose().rot.RotateVector(centerOfBuoyancy);
-        link->AddForceAtWorldPosition(linkBuoyancy,cobPosition);
+        math::Vector3 modelBuoyancy = math::Vector3(0,0,submersedRatio * buoyancy );
+        math::Vector3 cobPosition = link->GetWorldPose().pos +
+                link->GetWorldPose().rot.RotateVector(centerOfBuoyancy);
+
+        link->AddForceAtWorldPosition(modelBuoyancy,cobPosition);
     }
 
     double GazeboUnderwater::calculateSubmersedRatio(double distanceToSurface) const
@@ -182,19 +242,163 @@ namespace gazebo_underwater
         double submersedVolume = 0.0;
 
         if(distanceToSurface <= 0.0)
-        {
             submersedVolume = 0.0;
-        }else{
+        else{
             if(distanceToSurface <= (linkBoudingBox.GetZLength())/2.0 )
-            {
                 submersedVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() *
                         ( linkBoudingBox.GetZLength()/2.0 + distanceToSurface );
-            }else{
+            else
                 submersedVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() *
                         linkBoudingBox.GetZLength();
-            }
         }
-        // The submersed volume is given in percentage
         return submersedVolume/linkVolume;
     }
+
+    void GazeboUnderwater::applyCoriolisAddedInertia()
+    {
+        /**
+         * Based on McFarland[2013] and Fossen[1994]
+         * coriolisEffect = H(M*v)*v
+         * M = inertiaMatrix; v = velocity
+         * Operator H: R^6 -> R^(6x6).
+         *      H(v) = [0(3x3), J(v.head(3));
+         *              J(v.head(3)),  J(v.tail(3))]
+         * Operator J: R^3 -> R^(3x3) (the so(3) operator, skew-symmetric matrix)
+         *      J([v1; v2; v3]) = [ 0 ,-v3, v2;
+         *                          v3, 0 ,-v1;
+         *                         -v2, v1, 0]
+         * Cross product:
+         *      J(v.head(3)) * v.tail(3) = v.head(3) X v.tail(3)
+         */
+        Vector6 velocities = getModelFrameVelocities();
+        Vector6 momentum = addedInertia * velocities;
+        Vector6 coriloisEffect( momentum.top.Cross(velocities.bottom),
+                    momentum.top.Cross(velocities.top) + momentum.bottom.Cross(velocities.bottom));
+
+        link->AddLinkForce(coriloisEffect.top, modelInertial.GetCoG());
+        link->AddRelativeTorque(coriloisEffect.bottom);
+    }
+
+    void GazeboUnderwater::applyCompensatedEffort()
+    {
+        /**
+         * --AUV acceleration--
+         * acceleration = (M+Ma)^-1 *
+         * (Thruster + Coriolis + Coriolis_added_mass + Gravity_effect - Damping)
+         * acceleration = (M+Ma)^-1 * F;
+         * F =
+         * (Thruster + Coriolis + Coriolis_added_mass + Gravity_effect - Damping)
+         *
+         * --Acceleration computed by Gazebo--
+         *  acceleration' = M^-1 * F'
+         *
+         * -- Make accelerations equal--
+         * acceleration = acceleration'
+         * (M+Ma)^-1 * F = M^-1 * F'
+         * F' = F + C  => (M+Ma)^-1 * F = M^-1 * (F + C)
+         * C = (M*(M+Ma)^-1 - I) * F;
+         *
+         * Gazebo provides the methods GetForce() and GetTorques() that provides
+         * the efforts applied in previous step. Regarding the Coriolis, it is
+         * intrisic to Gazebo's physics, once all the forces are converted and
+         * applied in world-frame, so it doesn't count in the GetEffort methods.
+         * F'[k-1] = GetEffort + Coriolis
+         * C[k] = (M*(M+Ma)^-1 - I) * F[k-1]
+         * F[k-1] = (F'[k-1] - C[k-1])
+         * Knowing that an error of effort is present:
+         * F'[k] = F[k] + C[k] = F[k] + (M*(M+Ma)^-1 - I) * F[k-1]
+         * F'[k] = M(M+Ma)^-1*F[k-1] + deltaF[k]; deltaF[k] = F[k]-F[k-1]
+         * It is removed in the next step:
+         * F'[k] = M(M+Ma)^-1*F[k-1] + deltaF[k] - deltaF[k-1]
+         *
+         * Compesanted efforts C will make Gazebo compute the expected
+         * acceleration, ignoring the added mass matrix
+         */
+        math::Vector3 force = link->GetRelativeForce();
+        // Consider the torque related to force in link's CoG in the model's CoG
+        math::Vector3 torque = link->GetRelativeTorque()
+            + (link->GetInertial()->GetCoG() - modelInertial.GetCoG()).Cross(force);
+
+        // Consider Coriolis of model's inertia
+        Vector6 velocities = getModelFrameVelocities();
+        Vector6 momentum = gzInertia * velocities;
+        Vector6 coriloisEffect( momentum.top.Cross(velocities.bottom),
+                    momentum.top.Cross(velocities.top) + momentum.bottom.Cross(velocities.bottom));
+
+        Vector6 efforts(force, torque);
+        efforts += coriloisEffect;
+        // Remove influence of previous compensated effort
+        pastEffort1 = efforts - previousCompensatedEffort;
+        Vector6 compEfforts = compensatedInertia * pastEffort1;
+        // Remove influence of previous error
+        compEfforts -= (pastEffort1 - pastEffort2);
+
+        pastEffort2 = pastEffort1;
+        previousCompensatedEffort = compEfforts;
+
+        link->AddLinkForce(compEfforts.top, modelInertial.GetCoG());
+        link->AddRelativeTorque(compEfforts.bottom);
+    }
+
+    std::vector<Matrix6> GazeboUnderwater::convertToMatrices(const std::string &matrices)
+    {
+        std::vector<Matrix6> ret;
+        std::string rest_matrix = matrices;
+        size_t end = 0;
+        while(!rest_matrix.empty() && end!=std::string::npos)
+        {
+            end = rest_matrix.find("]");
+            if (end != std::string::npos)
+            {
+                ret.push_back(convertToMatrix(rest_matrix.substr(0, end+1)));
+                rest_matrix = rest_matrix.substr((end+1), rest_matrix.size()-1);
+            }
+        }
+        if (ret.size() != 2 && ret.size() != 6)
+            gzthrow("GazeboUnderwater: Damping Parameters has not 2 or 6 matrices!");
+        return ret;
+    }
+
+    Matrix6 GazeboUnderwater::convertToMatrix(const std::string &matrix)
+    {
+        Matrix6 ret;
+        std::vector<std::string> splitted;
+        if(matrix.compare(0,1,"[") || matrix.compare((matrix.size()-1),1,"]"))
+            gzthrow("GazeboUnderwater: Matrix is not delimetd by \"[ ]\"!");
+        std::string numeric_matrix = matrix.substr(1,matrix.size()-2);
+        boost::split( splitted, numeric_matrix, boost::is_any_of( ";" ), boost::token_compress_on );
+        if (splitted.size() != 6)
+            gzthrow("GazeboUnderwater: Matrix has not 6 lines!");
+        for( size_t i=0; i<6; i++)
+        {
+            std::vector<std::string> line;
+            boost::trim(splitted[i]);
+            boost::split( line, splitted[i], boost::is_any_of( " " ), boost::token_compress_on );
+            if (line.size() != 6)
+                gzthrow("GazeboUnderwater: Line has not 6 columns!" + splitted.size());
+            for(size_t j=0; j<6; j++)
+            {
+                if(i<3 && j<3)
+                    ret.top_left[i][j] = atof(line.at(j).c_str());
+                else if(i<3 && j>=3)
+                    ret.top_right[i][j-3] = atof(line.at(j).c_str());
+                else if(i>=3 && j<3)
+                    ret.bottom_left[i-3][j] = atof(line.at(j).c_str());
+                else if(i>=3 && j>=3)
+                    ret.bottom_right[i-3][j-3] = atof(line.at(j).c_str());
+            }
+        }
+        return ret;
+    }
+
+    Vector6 GazeboUnderwater::getModelFrameVelocities()
+    {
+        Vector6 velocities;
+        // Calculates the difference between the model and fluid velocity relative to the world frame
+        math::Vector3 velocityDifference = link->GetWorldLinearVel(modelInertial.GetCoG()) - fluidVelocity;
+        velocities.top = link->GetWorldPose().rot.RotateVectorReverse( velocityDifference );
+        velocities.bottom = link->GetRelativeAngularVel();
+        return velocities;
+    }
+
 }
