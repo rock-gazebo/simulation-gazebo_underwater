@@ -18,14 +18,13 @@ namespace gazebo_underwater
     {
     }
 
-    void GazeboUnderwater::Load(physics::WorldPtr _world, sdf::ElementPtr _sdf)
+    void GazeboUnderwater::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
     {
         gzmsg << "GazeboUnderwater: Loading underwater environment." << endl;
 
-        world = _world;
         sdf = _sdf;
 
-        model = getModel(_world, _sdf);
+        model = _model;
         link  = getReferenceLink(model, _sdf);
         loadParameters();
 
@@ -49,27 +48,6 @@ namespace gazebo_underwater
                     << default_value << ") " + dimension << endl;
         }
         return var;
-    }
-
-    physics::ModelPtr GazeboUnderwater::getModel(physics::WorldPtr world, sdf::ElementPtr sdf) const
-    {
-        if (!sdf->HasElement("model_name"))
-            gzthrow("GazeboUnderwater: model_name not defined in world file !");
-
-        physics::ModelPtr model = world->GetModel( sdf->Get<string>("model_name") );
-        if (!model)
-        {
-            string msg ="GazeboUnderwater: model " + sdf->Get<string>("model_name") +
-                    " not found in gazebo world: " + world->GetName() + ". ";
-            string available = "Known models are:";
-            gazebo::physics::Model_V models = world->GetModels();
-            for (size_t i = 0; i < models.size(); ++i)
-                available += " " + models[i]->GetName();
-            msg += available;
-            gzthrow(msg);
-        }
-        gzmsg << "GazeboUnderwater: model: " << model->GetName() << endl;
-        return model;
     }
 
     physics::LinkPtr GazeboUnderwater::getReferenceLink(physics::ModelPtr model, sdf::ElementPtr sdf) const
@@ -120,7 +98,7 @@ namespace gazebo_underwater
 
         // buoyancy must be the difference between the buoyancy when the model is completely submersed and the model weight
         buoyancy = getParameter<double>("buoyancy","N", 5);
-        buoyancy = abs(buoyancy) + modelInertial.GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength();
+        buoyancy = abs(buoyancy) + modelInertial.GetMass() * model->GetWorld()->GetPhysicsEngine()->GetGravity().GetLength();
         // centerOfBuoyancy must be positioned related to the model's center of gravity.
         centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
                 math::Vector3(0, 0, 0.15));
@@ -158,7 +136,7 @@ namespace gazebo_underwater
         gzmsg << "Inertia bottom_left:  " << endl << sum_inertia.bottom_left;
         gzmsg << "Inertia bottom_right: " << endl << sum_inertia.bottom_right << endl;
 
-        for (int i=0; i<dampingCoefficients.size(); i++)
+        for (unsigned int i=0; i<dampingCoefficients.size(); i++)
         {   gzmsg <<"GazeboUnderwater: Damping["<<i<<"]" <<std::endl;
             gzmsg <<"Damping["<<i<<"] top_left:     " << endl << dampingCoefficients[i].top_left;
             gzmsg <<"Damping["<<i<<"] top_right:    " << endl << dampingCoefficients[i].top_right;
@@ -166,7 +144,7 @@ namespace gazebo_underwater
             gzmsg <<"Damping["<<i<<"] bottom_right: " << endl << dampingCoefficients[i].bottom_right << endl;
         }
 
-        gzmsg << "GazeboUnderwater: Model's weight: "   << modelInertial.GetMass() * world->GetPhysicsEngine()->GetGravity().GetLength() << " N" << endl;
+        gzmsg << "GazeboUnderwater: Model's weight: "   << modelInertial.GetMass() * model->GetWorld()->GetPhysicsEngine()->GetGravity().GetLength() << " N" << endl;
         gzmsg << "GazeboUnderwater: Model's CoG: ("     << modelInertial.GetCoG() << ") meters" << endl;
         gzmsg << "GazeboUnderwater: Model's buoyancy: " << buoyancy << " N" << endl;
         gzmsg << "GazeboUnderwater: Model's CoB: ("     << centerOfBuoyancy << ") meters "<< endl;
