@@ -5,6 +5,7 @@
 #include <gazebo/math/Vector3.hh>
 #include <gazebo/math/Matrix3.hh>
 #include <vector>
+#include "uw_msgs.pb.h"
 
 namespace gazebo_underwater
 {

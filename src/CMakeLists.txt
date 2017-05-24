@@ -8,7 +8,7 @@ foreach(ITR ${GAZEBO_INCLUDE_DIRS})
     endif()
 endforeach()
 
-protobuf_generate_cpp(msgs_SRCS msgs_HDR msgs.proto
+protobuf_generate_cpp(uw_msgs_SRCS uw_msgs_HDR uw_msgs.proto
     ${PROTOBUF_IMPORT_DIRS}/vector3d.proto
     ${PROTOBUF_IMPORT_DIRS}/header.proto
     ${PROTOBUF_IMPORT_DIRS}/time.proto)
@@ -16,9 +16,9 @@ protobuf_generate_cpp(msgs_SRCS msgs_HDR msgs.proto
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 rock_library(gazebo_underwater_msgs
-    SOURCES  ${msgs_SRCS}
-    HEADERS ${msgs_HDR} DataTypes.hpp
-    DEPS_PKGCONFIG protobuf)
+    SOURCES  ${uw_msgs_SRCS}
+    HEADERS ${uw_msgs_HDR} DataTypes.hpp
+    DEPS_PKGCONFIG gazebo protobuf)
 
 rock_library(gazebo_underwater
     SOURCES GazeboUnderwater.cpp
@@ -30,5 +30,5 @@ rock_library(gazebo_underwater
 #install(FILES ${CMAKE_CURRENT_BINARY_DIR}/msgs.pb.h
 #    DESTINATION include/${PROJECT_NAME})
 
-install(FILES msgs.proto
+install(FILES uw_msgs.proto
     DESTINATION include/${PROJECT_NAME}/proto)
