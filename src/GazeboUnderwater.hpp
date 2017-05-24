@@ -4,6 +4,8 @@
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/math/Vector3.hh>
+#include <gazebo/transport/transport.hh>
+#include <gazebo/msgs/msgs.hh>
 #include "DataTypes.hpp"
 
 namespace gazebo_underwater
@@ -14,6 +16,8 @@ namespace gazebo_underwater
             typedef gazebo::physics::WorldPtr WorldPtr;
             typedef gazebo::physics::LinkPtr LinkPtr;
             typedef gazebo::physics::Inertial Inertial;
+            typedef gazebo::msgs::Inertial InertialMSG;
+            typedef gazebo_underwater::msgs::Matrix6 Matrix6MSG;
 
         private:
             void updateBegin(gazebo::common::UpdateInfo const& info);
@@ -29,6 +33,8 @@ namespace gazebo_underwater
             double calculateSubmersedRatio(double) const;
             Inertial computeModelInertial(ModelPtr model) const;
             Vector6 getModelFrameVelocities();
+            void publishInertia(Matrix6 const& comp_inertia, Inertial const& inertia_rb);
+            void initComNode(void);
 
             std::vector<Matrix6> convertToMatrices(const std::string &matrices);
             Matrix6 convertToMatrix(const std::string &matrix);
@@ -36,6 +42,9 @@ namespace gazebo_underwater
             WorldPtr world;
             ModelPtr model;
             LinkPtr link;
+            gazebo::transport::NodePtr node;
+            gazebo::transport::PublisherPtr compensatedMassPublisher;
+            gazebo::transport::PublisherPtr inertialPublisher;
             Inertial modelInertial;
             Vector6 previousCompensatedEffort;
             Vector6 pastEffort1;
