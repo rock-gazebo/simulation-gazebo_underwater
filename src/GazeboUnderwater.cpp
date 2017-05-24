@@ -173,13 +173,11 @@ namespace gazebo_underwater
         gzmsg << "GazeboUnderwater: Model's buoyancy: " << buoyancy << " N" << endl;
         gzmsg << "GazeboUnderwater: Model's CoB: ("     << centerOfBuoyancy << ") meters "<< endl;
 
-        Matrix6 identity(math::Matrix3::IDENTITY, math::Matrix3::ZERO, math::Matrix3::ZERO, math::Matrix3::IDENTITY);
         // gzInertia is symmetric positive definite (SPD) matrix.
         // addedInertia should be symmetric positive semidefinite
         // sum_inertia is positive definite so it has inverse.
-        Matrix6 comp_inertia = gzInertia * sum_inertia.Inverse();
-        compensatedInertia = comp_inertia - identity;
-        publishInertia(comp_inertia, modelInertial);
+        compInertia = gzInertia * sum_inertia.Inverse();
+        compensatedInertia = compInertia - Matrix6::Identity();
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
@@ -397,14 +395,19 @@ namespace gazebo_underwater
         return velocities;
     }
 
-    void GazeboUnderwater::publishInertia(Matrix6 const& comp_inertia, Inertial const& inertia_rb)
+    void GazeboUnderwater::publishInertia(Matrix6 const& comp_inertia, gazebo::math::Pose const& cog)
     {
         Matrix6MSG matrix;// = comp_inertia.to_msg;
-        InertialMSG inertia;// = inertia_rb.to_msg;
+
         if(compensatedMassPublisher->HasConnections())
             compensatedMassPublisher->Publish(matrix);
-        if(inertialPublisher->HasConnections())
-            inertialPublisher->Publish(inertia);
+        if(cogPublisher->HasConnections())
+        {
+            cogPublisher->Publish(gazebo::msgs::Convert(cog.Ign()));
+            gzmsg <<"GazeboUnderwater: publish CoG" << cog << endl;
+        }
+        else
+            gzmsg <<"GazeboUnderwater: cogPublisher has no connection" << endl;
     }
 
     void GazeboUnderwater::initComNode(void)
@@ -417,8 +420,8 @@ namespace gazebo_underwater
         gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ model->GetWorld()->GetName()
             + "/" + topicName << endl;
 
-        topicName = model->GetName() + "/inertia_rigid_body";
-        inertialPublisher = node->Advertise<InertialMSG>("~/" + topicName);
+        topicName = model->GetName() + "/CoG_rigid_body";
+        cogPublisher = node->Advertise<PoseMSG>("~/" + topicName);
         gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ model->GetWorld()->GetName()
             + "/" + topicName << endl;
     }

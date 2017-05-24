@@ -16,7 +16,7 @@ namespace gazebo_underwater
             typedef gazebo::physics::WorldPtr WorldPtr;
             typedef gazebo::physics::LinkPtr LinkPtr;
             typedef gazebo::physics::Inertial Inertial;
-            typedef gazebo::msgs::Inertial InertialMSG;
+            typedef gazebo::msgs::Pose PoseMSG;
             typedef gazebo_underwater::msgs::Matrix6 Matrix6MSG;
 
         private:
@@ -33,7 +33,7 @@ namespace gazebo_underwater
             double calculateSubmersedRatio(double) const;
             Inertial computeModelInertial(ModelPtr model) const;
             Vector6 getModelFrameVelocities();
-            void publishInertia(Matrix6 const& comp_inertia, Inertial const& inertia_rb);
+            void publishInertia(Matrix6 const& comp_inertia, gazebo::math::Pose const& CoG);
             void initComNode(void);
 
             std::vector<Matrix6> convertToMatrices(const std::string &matrices);
@@ -44,7 +44,7 @@ namespace gazebo_underwater
             LinkPtr link;
             gazebo::transport::NodePtr node;
             gazebo::transport::PublisherPtr compensatedMassPublisher;
-            gazebo::transport::PublisherPtr inertialPublisher;
+            gazebo::transport::PublisherPtr cogPublisher;
             Inertial modelInertial;
             Vector6 previousCompensatedEffort;
             Vector6 pastEffort1;
@@ -56,6 +56,8 @@ namespace gazebo_underwater
             Matrix6 gzInertia;
             // Added intertia of a rigid body robot (Ma)
             Matrix6 addedInertia;
+            // M*(M+Ma)⁻¹
+            Matrix6 compInertia;
             // M*(M+Ma)⁻¹ - I
             Matrix6 compensatedInertia;
 

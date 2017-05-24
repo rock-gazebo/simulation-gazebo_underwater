@@ -87,6 +87,11 @@ struct Matrix6
          return inv;
     }
 
+    static inline Matrix6 Identity()
+    {
+       return  Matrix6(gazebo::math::Matrix3::IDENTITY, gazebo::math::Matrix3::ZERO,
+               gazebo::math::Matrix3::ZERO, gazebo::math::Matrix3::IDENTITY);
+    }
 };
 
 struct Vector6
