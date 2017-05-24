@@ -182,6 +182,7 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
     {
+        publishInertia(compInertia, modelInertial.GetPose());
         applyBuoyancy();
         applyDamp();
         applyCoriolisAddedInertia();
@@ -402,12 +403,7 @@ namespace gazebo_underwater
         if(compensatedMassPublisher->HasConnections())
             compensatedMassPublisher->Publish(matrix);
         if(cogPublisher->HasConnections())
-        {
             cogPublisher->Publish(gazebo::msgs::Convert(cog.Ign()));
-            gzmsg <<"GazeboUnderwater: publish CoG" << cog << endl;
-        }
-        else
-            gzmsg <<"GazeboUnderwater: cogPublisher has no connection" << endl;
     }
 
     void GazeboUnderwater::initComNode(void)
