@@ -92,6 +92,44 @@ struct Matrix6
        return  Matrix6(gazebo::math::Matrix3::IDENTITY, gazebo::math::Matrix3::ZERO,
                gazebo::math::Matrix3::ZERO, gazebo::math::Matrix3::IDENTITY);
     }
+
+    gazebo_underwater::msgs::Matrix3 ConvertToMsg(const gazebo::math::Matrix3 &matrix)
+    {
+        gazebo::math::Vector3 vec;
+        gazebo_underwater::msgs::Matrix3 msg;
+        vec.Set(matrix[0][0], matrix[1][0], matrix[2][0]);
+        gazebo::msgs::Set(msg.mutable_x(), vec.Ign());
+        vec.Set(matrix[0][1], matrix[1][1], matrix[2][1]);
+        gazebo::msgs::Set(msg.mutable_y(), vec.Ign());
+        vec.Set(matrix[0][2], matrix[1][2], matrix[2][2]);
+        gazebo::msgs::Set(msg.mutable_z(), vec.Ign());
+        return msg;
+    }
+
+    gazebo_underwater::msgs::Matrix6 ConvertToMsg()
+    {
+        gazebo_underwater::msgs::Matrix6 msg;
+        msg.mutable_tl()->CopyFrom(this->ConvertToMsg(this->top_left));
+        msg.mutable_tr()->CopyFrom(this->ConvertToMsg(this->top_right));
+        msg.mutable_bl()->CopyFrom(this->ConvertToMsg(this->bottom_left));
+        msg.mutable_br()->CopyFrom(this->ConvertToMsg(this->bottom_right));
+        return msg;
+    }
+
+    gazebo::math::Matrix3 Matrix3(const gazebo_underwater::msgs::Matrix3 &msg)
+    {
+        gazebo::math::Matrix3 matrix;
+        matrix.SetFromAxes(gazebo::math::Vector3(gazebo::msgs::ConvertIgn(msg.x())),
+                gazebo::math::Vector3(gazebo::msgs::ConvertIgn(msg.y())),
+                gazebo::math::Vector3(gazebo::msgs::ConvertIgn(msg.z())));
+        return matrix;
+    }
+
+    Matrix6(const gazebo_underwater::msgs::Matrix6 &msg)
+    {
+        Matrix6(Matrix3(msg.tl()), Matrix3(msg.tr()),
+                Matrix3(msg.bl()), Matrix3(msg.br()));
+    }
 };
 
 struct Vector6
