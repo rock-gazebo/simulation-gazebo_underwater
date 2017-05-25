@@ -398,10 +398,8 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::publishInertia(Matrix6 const& comp_inertia, gazebo::math::Pose const& cog)
     {
-        Matrix6MSG matrix;// = comp_inertia.to_msg;
-
         if(compensatedMassPublisher->HasConnections())
-            compensatedMassPublisher->Publish(matrix);
+            compensatedMassPublisher->Publish(comp_inertia.ConvertToMsg());
         if(cogPublisher->HasConnections())
             cogPublisher->Publish(gazebo::msgs::Convert(cog.Ign()));
     }

@@ -17,28 +17,22 @@ struct Matrix6
     gazebo::math::Matrix3 bottom_left;
     gazebo::math::Matrix3 bottom_right;
 
-    Matrix6()
-    {
-        top_left = gazebo::math::Matrix3::ZERO;
-        top_right = gazebo::math::Matrix3::ZERO;
-        bottom_left = gazebo::math::Matrix3::ZERO;
-        bottom_right = gazebo::math::Matrix3::ZERO;
-    }
+    Matrix6():
+        top_left(gazebo::math::Matrix3::ZERO),
+        top_right(gazebo::math::Matrix3::ZERO),
+        bottom_left(gazebo::math::Matrix3::ZERO),
+        bottom_right(gazebo::math::Matrix3::ZERO)
+    {}
     Matrix6(const gazebo::math::Matrix3 &tl, const gazebo::math::Matrix3 &tr,
-                const gazebo::math::Matrix3 &bl, const gazebo::math::Matrix3 &br)
-    {
-        top_left = tl;
-        top_right = tr;
-        bottom_left = bl;
-        bottom_right = br;
-    }
-    Matrix6(const Matrix6 &matrix)
-    {
-        top_left = matrix.top_left;
-        top_right = matrix.top_right;
-        bottom_left = matrix.bottom_left;
-        bottom_right = matrix.bottom_right;
-    }
+                const gazebo::math::Matrix3 &bl, const gazebo::math::Matrix3 &br):
+        top_left(tl),
+        top_right(tr),
+        bottom_left(bl),
+        bottom_right(br)
+    {}
+    Matrix6(const Matrix6 &matrix):
+        Matrix6(matrix.top_left, matrix.top_right, matrix.bottom_left, matrix.bottom_right)
+    {}
     inline Matrix6& operator+=(const Matrix6 &value)
     {
         this->top_left = this->top_left + value.top_left;
@@ -93,7 +87,7 @@ struct Matrix6
                gazebo::math::Matrix3::ZERO, gazebo::math::Matrix3::IDENTITY);
     }
 
-    gazebo_underwater::msgs::Matrix3 ConvertToMsg(const gazebo::math::Matrix3 &matrix)
+    inline gazebo_underwater::msgs::Matrix3 ConvertToMsg(const gazebo::math::Matrix3 &matrix) const
     {
         gazebo::math::Vector3 vec;
         gazebo_underwater::msgs::Matrix3 msg;
@@ -106,17 +100,17 @@ struct Matrix6
         return msg;
     }
 
-    gazebo_underwater::msgs::Matrix6 ConvertToMsg()
+    inline gazebo_underwater::msgs::Matrix6 ConvertToMsg() const
     {
         gazebo_underwater::msgs::Matrix6 msg;
-        msg.mutable_tl()->CopyFrom(this->ConvertToMsg(this->top_left));
-        msg.mutable_tr()->CopyFrom(this->ConvertToMsg(this->top_right));
-        msg.mutable_bl()->CopyFrom(this->ConvertToMsg(this->bottom_left));
-        msg.mutable_br()->CopyFrom(this->ConvertToMsg(this->bottom_right));
+        msg.mutable_tl()->CopyFrom(ConvertToMsg(this->top_left));
+        msg.mutable_tr()->CopyFrom(ConvertToMsg(this->top_right));
+        msg.mutable_bl()->CopyFrom(ConvertToMsg(this->bottom_left));
+        msg.mutable_br()->CopyFrom(ConvertToMsg(this->bottom_right));
         return msg;
     }
 
-    gazebo::math::Matrix3 Matrix3(const gazebo_underwater::msgs::Matrix3 &msg)
+    inline gazebo::math::Matrix3 Matrix3(const gazebo_underwater::msgs::Matrix3 &msg) const
     {
         gazebo::math::Matrix3 matrix;
         matrix.SetFromAxes(gazebo::math::Vector3(gazebo::msgs::ConvertIgn(msg.x())),
@@ -125,11 +119,10 @@ struct Matrix6
         return matrix;
     }
 
-    Matrix6(const gazebo_underwater::msgs::Matrix6 &msg)
-    {
+    Matrix6(const gazebo_underwater::msgs::Matrix6 &msg):
         Matrix6(Matrix3(msg.tl()), Matrix3(msg.tr()),
-                Matrix3(msg.bl()), Matrix3(msg.br()));
-    }
+                Matrix3(msg.bl()), Matrix3(msg.br()))
+    {}
 };
 
 struct Vector6
