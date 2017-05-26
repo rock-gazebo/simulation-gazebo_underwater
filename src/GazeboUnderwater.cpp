@@ -186,7 +186,7 @@ namespace gazebo_underwater
         applyBuoyancy();
         applyDamp();
         applyCoriolisAddedInertia();
-        applyCompensatedEffort();
+        compensateGzEffort();
     }
 
     void GazeboUnderwater::applyDamp()
@@ -220,6 +220,8 @@ namespace gazebo_underwater
             // Add minus for indicate resistence efforts.
             damp *= -calculateSubmersedRatio(distanceToSurface);
 
+            damp = compInertia * damp;
+
             link->AddLinkForce(damp.top, modelInertial.GetCoG());
             link->AddRelativeTorque(damp.bottom);
            }
@@ -232,10 +234,15 @@ namespace gazebo_underwater
         double submersedRatio = calculateSubmersedRatio(distanceToSurface);
 
         math::Vector3 modelBuoyancy = math::Vector3(0,0,submersedRatio * buoyancy );
-        math::Vector3 cobPosition = link->GetWorldPose().pos +
-                link->GetWorldPose().rot.RotateVector(centerOfBuoyancy);
 
-        link->AddForceAtWorldPosition(modelBuoyancy,cobPosition);
+        Vector6 effort;
+        effort.top = link->GetWorldPose().rot.RotateVectorReverse(modelBuoyancy);
+        effort.bottom = (centerOfBuoyancy - modelInertial.GetCoG()).Cross(effort.top);
+
+        effort = compInertia * effort;
+
+        link->AddLinkForce(effort.top, modelInertial.GetCoG());
+        link->AddRelativeTorque(effort.bottom);
     }
 
     double GazeboUnderwater::calculateSubmersedRatio(double distanceToSurface) const
@@ -275,14 +282,16 @@ namespace gazebo_underwater
          */
         Vector6 velocities = getModelFrameVelocities();
         Vector6 momentum = addedInertia * velocities;
-        Vector6 coriloisEffect( momentum.top.Cross(velocities.bottom),
+        Vector6 coriolisEffect( momentum.top.Cross(velocities.bottom),
                     momentum.top.Cross(velocities.top) + momentum.bottom.Cross(velocities.bottom));
 
-        link->AddLinkForce(coriloisEffect.top, modelInertial.GetCoG());
-        link->AddRelativeTorque(coriloisEffect.bottom);
+        coriolisEffect = compInertia * coriolisEffect;
+
+        link->AddLinkForce(coriolisEffect.top, modelInertial.GetCoG());
+        link->AddRelativeTorque(coriolisEffect.bottom);
     }
 
-    void GazeboUnderwater::applyCompensatedEffort()
+    void GazeboUnderwater::compensateGzEffort()
     {
         /**
          * --AUV acceleration--
@@ -300,39 +309,22 @@ namespace gazebo_underwater
          * (M+Ma)^-1 * F = M^-1 * F'
          * F' = F + C  => (M+Ma)^-1 * F = M^-1 * (F + C)
          * C = (M*(M+Ma)^-1 - I) * F;
-         *
-         * Gazebo provides the methods GetForce() and GetTorques() that provides
-         * the efforts applied in previous step. Regarding the Coriolis, it is
-         * intrisic to Gazebo's physics, once all the forces are converted and
-         * applied in world-frame, so it doesn't count in the GetEffort methods.
-         * F'[k-1] = GetEffort + Coriolis
-         * C[k] = (M*(M+Ma)^-1 - I) * F[k-1]
-         * F[k-1] = (F'[k-1] - C[k-1])
-         *
-         * Compesanted efforts C will make Gazebo compute the expected
-         * acceleration, ignoring the added mass matrix
          */
-        math::Vector3 force = link->GetRelativeForce();
-        // Consider the torque related to force in link's CoG in the model's CoG
-        math::Vector3 torque = link->GetRelativeTorque()
-            + (link->GetInertial()->GetCoG() - modelInertial.GetCoG()).Cross(force);
 
         // Consider Coriolis of model's inertia
         Vector6 velocities = getModelFrameVelocities();
         Vector6 momentum = gzInertia * velocities;
-        Vector6 coriloisEffect( momentum.top.Cross(velocities.bottom),
+        Vector6 effort( momentum.top.Cross(velocities.bottom),
                     momentum.top.Cross(velocities.top) + momentum.bottom.Cross(velocities.bottom));
 
-        Vector6 efforts(force, torque);
-        efforts += coriloisEffect;
-        // Remove influence of previous compensated effort
-        pastEffort1 = efforts - previousCompensatedEffort;
-        Vector6 compEfforts = compInertiaEye * pastEffort1;
+        // Consider gravity
+        math::Vector3 weight( modelInertial.GetMass() * world->Gravity());
+        effort.top += link->GetWorldPose().rot.RotateVectorReverse( weight );
 
-        previousCompensatedEffort = compEfforts;
+        effort = compInertiaEye * effort;
 
-        link->AddLinkForce(compEfforts.top, modelInertial.GetCoG());
-        link->AddRelativeTorque(compEfforts.bottom);
+        link->AddLinkForce(effort.top, modelInertial.GetCoG());
+        link->AddRelativeTorque(effort.bottom);
     }
 
     std::vector<Matrix6> GazeboUnderwater::convertToMatrices(const std::string &matrices)

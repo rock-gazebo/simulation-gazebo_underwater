@@ -24,7 +24,7 @@ namespace gazebo_underwater
             void applyBuoyancy();
             void applyDamp();
             void applyCoriolisAddedInertia();
-            void applyCompensatedEffort();
+            void compensateGzEffort();
             ModelPtr getModel(WorldPtr world, sdf::ElementPtr sdf) const;
             LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();
@@ -45,8 +45,6 @@ namespace gazebo_underwater
             gazebo::transport::NodePtr node;
             gazebo::transport::PublisherPtr compensatedMassPublisher;
             Inertial modelInertial;
-            Vector6 previousCompensatedEffort;
-            Vector6 pastEffort1;
 
             sdf::ElementPtr sdf;
             std::vector<gazebo::event::ConnectionPtr> eventHandler;
