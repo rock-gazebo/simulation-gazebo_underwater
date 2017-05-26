@@ -177,7 +177,7 @@ namespace gazebo_underwater
         // addedInertia should be symmetric positive semidefinite
         // sum_inertia is positive definite so it has inverse.
         compInertia = gzInertia * sum_inertia.Inverse();
-        compensatedInertia = compInertia - Matrix6::Identity();
+        compInertiaEye = compInertia - Matrix6::Identity();
     }
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
@@ -327,7 +327,7 @@ namespace gazebo_underwater
         efforts += coriloisEffect;
         // Remove influence of previous compensated effort
         pastEffort1 = efforts - previousCompensatedEffort;
-        Vector6 compEfforts = compensatedInertia * pastEffort1;
+        Vector6 compEfforts = compInertiaEye * pastEffort1;
 
         previousCompensatedEffort = compEfforts;
 

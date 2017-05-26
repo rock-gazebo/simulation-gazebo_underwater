@@ -58,7 +58,7 @@ namespace gazebo_underwater
             // M*(M+Ma)⁻¹
             Matrix6 compInertia;
             // M*(M+Ma)⁻¹ - I
-            Matrix6 compensatedInertia;
+            Matrix6 compInertiaEye;
 
             // Matrices of dampings.
             // If vector has two elements, they will be the linear and quadratic
