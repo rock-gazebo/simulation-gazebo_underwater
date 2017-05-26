@@ -15,3 +15,9 @@ message Matrix6
     required Matrix3   bl = 3;
     required Matrix3   br = 4;
 }
+
+message CompensatedMass
+{
+    required Matrix6 matrix = 1;
+    required gazebo.msgs.Vector3d cog = 2;
+}

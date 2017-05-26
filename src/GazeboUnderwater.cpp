@@ -182,7 +182,7 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
     {
-        publishInertia(compInertia, modelInertial.GetPose());
+        publishInertia(compInertia, modelInertial.GetCoG());
         applyBuoyancy();
         applyDamp();
         applyCoriolisAddedInertia();
@@ -396,12 +396,13 @@ namespace gazebo_underwater
         return velocities;
     }
 
-    void GazeboUnderwater::publishInertia(Matrix6 const& comp_inertia, gazebo::math::Pose const& cog)
+    void GazeboUnderwater::publishInertia(Matrix6 const& comp_inertia, gazebo::math::Vector3 const& cog)
     {
+        CompMassMSG compMassMSG;
+        compMassMSG.mutable_matrix()->CopyFrom(comp_inertia.ConvertToMsg());
+        compMassMSG.mutable_cog()->CopyFrom(gazebo::msgs::Convert(cog.Ign()));
         if(compensatedMassPublisher->HasConnections())
-            compensatedMassPublisher->Publish(comp_inertia.ConvertToMsg());
-        if(cogPublisher->HasConnections())
-            cogPublisher->Publish(gazebo::msgs::Convert(cog.Ign()));
+            compensatedMassPublisher->Publish(compMassMSG);
     }
 
     void GazeboUnderwater::initComNode(void)
@@ -409,13 +410,8 @@ namespace gazebo_underwater
         // Initialize communication node and subscribe to gazebo topic
         node = transport::NodePtr(new transport::Node());
         node->Init();
-        string topicName = model->GetName() + "/compensated_mass_matrix";
-        compensatedMassPublisher = node->Advertise<Matrix6MSG>("~/" + topicName);
-        gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ model->GetWorld()->GetName()
-            + "/" + topicName << endl;
-
-        topicName = model->GetName() + "/CoG_rigid_body";
-        cogPublisher = node->Advertise<PoseMSG>("~/" + topicName);
+        string topicName = model->GetName() + "/compensated_mass";
+        compensatedMassPublisher = node->Advertise<CompMassMSG>("~/" + topicName);
         gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ model->GetWorld()->GetName()
             + "/" + topicName << endl;
     }
