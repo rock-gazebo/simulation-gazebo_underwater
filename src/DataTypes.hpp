@@ -65,7 +65,18 @@ struct Matrix6
         this->bottom_right = this->bottom_left * value.top_right + this->bottom_right * value.bottom_right;
         return *this;
     }
-    Matrix6 Inverse()
+    bool operator==(const Matrix6 &value)
+    {
+        return (value.top_left == this->top_left) &&
+               (value.top_right == this->top_right) &&
+               (value.bottom_left == this->bottom_left) &&
+               (value.bottom_right == this->bottom_right);
+    }
+    bool operator!=(const Matrix6 &value)
+    {
+        return !(*this == value);
+    }
+   Matrix6 Inverse()
     {
         /** Inversion by blocks
          * [A, B;⁻¹ = [(A - BD⁻¹C)⁻¹, -A⁻¹B(D - CA⁻¹B)⁻¹;
@@ -162,6 +173,15 @@ struct Vector6
         this->top -= value.top;
         this->bottom -= value.bottom;
         return *this;
+    }
+    bool operator==(const Vector6 &value)
+    {
+        return (value.top == this->top) &&
+               (value.bottom == this->bottom);
+    }
+    bool operator!=(const Vector6 &value)
+    {
+        return !(*this == value);
     }
 };
 
