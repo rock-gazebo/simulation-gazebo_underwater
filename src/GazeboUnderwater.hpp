@@ -4,6 +4,8 @@
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
 #include <gazebo/math/Vector3.hh>
+#include <gazebo/transport/transport.hh>
+#include <gazebo/msgs/msgs.hh>
 #include "DataTypes.hpp"
 
 namespace gazebo_underwater
@@ -14,13 +16,15 @@ namespace gazebo_underwater
             typedef gazebo::physics::WorldPtr WorldPtr;
             typedef gazebo::physics::LinkPtr LinkPtr;
             typedef gazebo::physics::Inertial Inertial;
+            typedef gazebo::msgs::Pose PoseMSG;
+            typedef gazebo_underwater::msgs::CompensatedMass CompMassMSG;
 
         private:
             void updateBegin(gazebo::common::UpdateInfo const& info);
             void applyBuoyancy();
             void applyDamp();
             void applyCoriolisAddedInertia();
-            void applyCompensatedEffort();
+            void compensateGzEffort();
             ModelPtr getModel(WorldPtr world, sdf::ElementPtr sdf) const;
             LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();
@@ -29,6 +33,8 @@ namespace gazebo_underwater
             double calculateSubmersedRatio(double) const;
             Inertial computeModelInertial(ModelPtr model) const;
             Vector6 getModelFrameVelocities();
+            void publishInertia(Matrix6 const& comp_inertia, gazebo::math::Vector3 const& cog);
+            void initComNode(void);
 
             std::vector<Matrix6> convertToMatrices(const std::string &matrices);
             Matrix6 convertToMatrix(const std::string &matrix);
@@ -36,10 +42,9 @@ namespace gazebo_underwater
             WorldPtr world;
             ModelPtr model;
             LinkPtr link;
+            gazebo::transport::NodePtr node;
+            gazebo::transport::PublisherPtr compensatedMassPublisher;
             Inertial modelInertial;
-            Vector6 previousCompensatedEffort;
-            Vector6 pastEffort1;
-            Vector6 pastEffort2;
 
             sdf::ElementPtr sdf;
             std::vector<gazebo::event::ConnectionPtr> eventHandler;
@@ -48,8 +53,10 @@ namespace gazebo_underwater
             Matrix6 gzInertia;
             // Added intertia of a rigid body robot (Ma)
             Matrix6 addedInertia;
+            // M*(M+Ma)⁻¹
+            Matrix6 compInertia;
             // M*(M+Ma)⁻¹ - I
-            Matrix6 compensatedInertia;
+            Matrix6 compInertiaEye;
 
             // Matrices of dampings.
             // If vector has two elements, they will be the linear and quadratic
