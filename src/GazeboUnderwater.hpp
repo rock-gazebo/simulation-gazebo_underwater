@@ -1,9 +1,9 @@
 #ifndef _GAZEBOUNDERWATER_HPP_
 #define _GAZEBOUNDERWATER_HPP_
 
+#include "Gazebo7Shims.hpp"
 #include <gazebo/common/common.hh>
 #include <gazebo/physics/physics.hh>
-#include <gazebo/math/Vector3.hh>
 #include <gazebo/transport/transport.hh>
 #include <gazebo/msgs/msgs.hh>
 #include "DataTypes.hpp"
@@ -32,7 +32,7 @@ namespace gazebo_underwater
             double calculateSubmersedRatio(double) const;
             Inertial computeModelInertial(ModelPtr model) const;
             Vector6 getModelFrameVelocities();
-            void publishInertia(Matrix6 const& comp_inertia, gazebo::math::Vector3 const& cog);
+            void publishInertia(Matrix6 const& comp_inertia, ignition::math::Vector3d const& cog);
             void initComNode(void);
 
             std::vector<Matrix6> convertToMatrices(const std::string &matrices);
@@ -64,8 +64,8 @@ namespace gazebo_underwater
             // linear velocities x,y,z followed by the angular velocities x,y,z
             std::vector<Matrix6> dampingCoefficients;
 
-            gazebo::math::Vector3 centerOfBuoyancy;
-            gazebo::math::Vector3 fluidVelocity;
+            ignition::math::Vector3d centerOfBuoyancy;
+            ignition::math::Vector3d fluidVelocity;
 
             double waterLevel;       // dimension in meter
             double buoyancy;

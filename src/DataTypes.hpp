@@ -1,9 +1,8 @@
 #ifndef _DATATYPES_HPP_
 #define _DATATYPES_HPP_
 
+#include "Gazebo7Shims.hpp"
 #include <gazebo/common/common.hh>
-#include <gazebo/math/Vector3.hh>
-#include <gazebo/math/Matrix3.hh>
 #include <vector>
 #include "uw_msgs.pb.h"
 
@@ -12,19 +11,19 @@ namespace gazebo_underwater
 
 struct Matrix6
 {
-    gazebo::math::Matrix3 top_left;
-    gazebo::math::Matrix3 top_right;
-    gazebo::math::Matrix3 bottom_left;
-    gazebo::math::Matrix3 bottom_right;
+    ignition::math::Matrix3d top_left;
+    ignition::math::Matrix3d top_right;
+    ignition::math::Matrix3d bottom_left;
+    ignition::math::Matrix3d bottom_right;
 
     Matrix6():
-        top_left(gazebo::math::Matrix3::ZERO),
-        top_right(gazebo::math::Matrix3::ZERO),
-        bottom_left(gazebo::math::Matrix3::ZERO),
-        bottom_right(gazebo::math::Matrix3::ZERO)
+        top_left(ignition::math::Matrix3d::Zero),
+        top_right(ignition::math::Matrix3d::Zero),
+        bottom_left(ignition::math::Matrix3d::Zero),
+        bottom_right(ignition::math::Matrix3d::Zero)
     {}
-    Matrix6(const gazebo::math::Matrix3 &tl, const gazebo::math::Matrix3 &tr,
-                const gazebo::math::Matrix3 &bl, const gazebo::math::Matrix3 &br):
+    Matrix6(const ignition::math::Matrix3d &tl, const ignition::math::Matrix3d &tr,
+                const ignition::math::Matrix3d &bl, const ignition::math::Matrix3d &br):
         top_left(tl),
         top_right(tr),
         bottom_left(bl),
@@ -83,8 +82,8 @@ struct Matrix6
          *  C, D]      -D⁻¹C(A - BD⁻¹C)⁻¹, (D - CA⁻¹B)⁻¹]
          */
          Matrix6 inv;
-         gazebo::math::Matrix3 Sd = (this->top_left - this->top_right*this->bottom_right.Inverse()*this->bottom_left).Inverse();
-         gazebo::math::Matrix3 Sa = (this->bottom_right - this->bottom_left*this->top_left.Inverse()*this->top_right).Inverse();
+         ignition::math::Matrix3d Sd = (this->top_left - this->top_right*this->bottom_right.Inverse()*this->bottom_left).Inverse();
+         ignition::math::Matrix3d Sa = (this->bottom_right - this->bottom_left*this->top_left.Inverse()*this->top_right).Inverse();
          inv.top_left = Sd;
          inv.top_right = this->top_left.Inverse()*this->top_right*Sa*(-1);
          inv.bottom_left = this->bottom_right.Inverse()*this->bottom_left*Sd*(-1);
@@ -94,20 +93,20 @@ struct Matrix6
 
     static inline Matrix6 Identity()
     {
-       return  Matrix6(gazebo::math::Matrix3::IDENTITY, gazebo::math::Matrix3::ZERO,
-               gazebo::math::Matrix3::ZERO, gazebo::math::Matrix3::IDENTITY);
+       return  Matrix6(ignition::math::Matrix3d::Identity, ignition::math::Matrix3d::Zero,
+               ignition::math::Matrix3d::Zero, ignition::math::Matrix3d::Identity);
     }
 
-    inline gazebo_underwater::msgs::Matrix3 ConvertToMsg(const gazebo::math::Matrix3 &matrix) const
+    inline gazebo_underwater::msgs::Matrix3 ConvertToMsg(const ignition::math::Matrix3d &matrix) const
     {
-        gazebo::math::Vector3 vec;
+        ignition::math::Vector3d vec;
         gazebo_underwater::msgs::Matrix3 msg;
-        vec.Set(matrix[0][0], matrix[1][0], matrix[2][0]);
-        gazebo::msgs::Set(msg.mutable_x(), vec.Ign());
-        vec.Set(matrix[0][1], matrix[1][1], matrix[2][1]);
-        gazebo::msgs::Set(msg.mutable_y(), vec.Ign());
-        vec.Set(matrix[0][2], matrix[1][2], matrix[2][2]);
-        gazebo::msgs::Set(msg.mutable_z(), vec.Ign());
+        vec.Set(matrix(0,0), matrix(1,0), matrix(2,0));
+        gazebo::msgs::Set(msg.mutable_x(), vec);
+        vec.Set(matrix(0,1), matrix(1,1), matrix(2,1));
+        gazebo::msgs::Set(msg.mutable_y(), vec);
+        vec.Set(matrix(0,2), matrix(1,2), matrix(2,2));
+        gazebo::msgs::Set(msg.mutable_z(), vec);
         return msg;
     }
 
@@ -121,40 +120,40 @@ struct Matrix6
         return msg;
     }
 
-    inline gazebo::math::Matrix3 Matrix3(const gazebo_underwater::msgs::Matrix3 &msg) const
+    static inline ignition::math::Matrix3d ConvertFromMsg(const gazebo_underwater::msgs::Matrix3 &msg)
     {
-        gazebo::math::Matrix3 matrix;
-        matrix.SetFromAxes(gazebo::math::Vector3(gazebo::msgs::ConvertIgn(msg.x())),
-                gazebo::math::Vector3(gazebo::msgs::ConvertIgn(msg.y())),
-                gazebo::math::Vector3(gazebo::msgs::ConvertIgn(msg.z())));
+        ignition::math::Matrix3d matrix;
+        matrix.Axes(gazebo::msgs::ConvertIgn(msg.x()),
+                gazebo::msgs::ConvertIgn(msg.y()),
+                gazebo::msgs::ConvertIgn(msg.z()));
         return matrix;
     }
 
     Matrix6(const gazebo_underwater::msgs::Matrix6 &msg):
-        Matrix6(Matrix3(msg.tl()), Matrix3(msg.tr()),
-                Matrix3(msg.bl()), Matrix3(msg.br()))
+        Matrix6(ConvertFromMsg(msg.tl()), ConvertFromMsg(msg.tr()),
+                ConvertFromMsg(msg.bl()), ConvertFromMsg(msg.br()))
     {}
 };
 
 struct Vector6
 {
-    gazebo::math::Vector3 top;
-    gazebo::math::Vector3 bottom;
+    ignition::math::Vector3d top;
+    ignition::math::Vector3d bottom;
 
     Vector6()
+        : top(ignition::math::Vector3d::Zero)
+        , bottom(ignition::math::Vector3d::Zero)
     {
-        top = gazebo::math::Vector3::Zero;
-        bottom = gazebo::math::Vector3::Zero;
     }
-    Vector6(const gazebo::math::Vector3 &t, const gazebo::math::Vector3 &b)
+    Vector6(const ignition::math::Vector3d &t, const ignition::math::Vector3d &b)
+        : top(t)
+        , bottom(b)
     {
-        top = t;
-        bottom = b;
     }
     Vector6(const Vector6 &v)
+        : top(v.top)
+        , bottom(v.bottom)
     {
-        top = v.top;
-        bottom = v.bottom;
     }
     inline Vector6& operator*=(double value)
     {
