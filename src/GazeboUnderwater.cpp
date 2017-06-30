@@ -26,6 +26,7 @@ namespace gazebo_underwater
         sdf = _sdf;
 
         model = _model;
+        world = _model->GetWorld();
         link  = getReferenceLink(model, _sdf);
         initComNode();
         loadParameters();

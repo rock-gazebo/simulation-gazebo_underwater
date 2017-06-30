@@ -13,6 +13,7 @@ namespace gazebo_underwater
     class GazeboUnderwater : public gazebo::ModelPlugin
     {
             typedef gazebo::physics::ModelPtr ModelPtr;
+            typedef gazebo::physics::WorldPtr WorldPtr;
             typedef gazebo::physics::LinkPtr LinkPtr;
             typedef gazebo::physics::Inertial Inertial;
             typedef gazebo::msgs::Pose PoseMSG;
@@ -24,7 +25,6 @@ namespace gazebo_underwater
             void applyDamp();
             void applyCoriolisAddedInertia();
             void compensateGzEffort();
-            ModelPtr getModel(WorldPtr world, sdf::ElementPtr sdf) const;
             LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();
             template <typename T>
@@ -39,6 +39,7 @@ namespace gazebo_underwater
             Matrix6 convertToMatrix(const std::string &matrix);
 
             ModelPtr model;
+            WorldPtr world;
             LinkPtr link;
             gazebo::transport::NodePtr node;
             gazebo::transport::PublisherPtr compensatedMassPublisher;
