@@ -86,7 +86,7 @@ namespace gazebo_underwater
                 // Set Inertial's CoG related with the parent link
                 Inertial temp = *(*it)->GetInertial();
                 Pose3d pose = GzGetIgn((**it), RelativePose, ());
-                pose.CoordPositionAdd(pose.Rot().RotateVector(GzGetIgn(temp, CoG, ())));
+                pose.Pos() += pose.Rot().RotateVector(GzGetIgn(temp, CoG, ()));
                 temp.SetCoG(pose);
                 inertial += temp;
             }
