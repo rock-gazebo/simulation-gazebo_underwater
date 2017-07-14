@@ -17,7 +17,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 rock_library(gazebo_underwater_msgs
     SOURCES  ${uw_msgs_SRCS}
-    HEADERS ${uw_msgs_HDR} DataTypes.hpp
+    HEADERS ${uw_msgs_HDR} DataTypes.hpp Gazebo7Shims.hpp
     DEPS_PKGCONFIG gazebo protobuf)
 
 rock_library(gazebo_underwater

@@ -7,6 +7,7 @@
 
 using namespace std;
 using namespace gazebo;
+using namespace ignition::math;
 
 namespace gazebo_underwater
 {
@@ -77,16 +78,15 @@ namespace gazebo_underwater
     physics::Inertial GazeboUnderwater::computeModelInertial(physics::ModelPtr model) const
     {
         Inertial inertial(0);
-        inertial.SetMOI(math::Matrix3::ZERO);
-        Inertial temp;
+        inertial.SetMOI(GzMatrix3(Matrix3d::Zero));
         physics::Link_V links = model->GetLinks();
         for (physics::Link_V::iterator it = links.begin(); it != links.end(); ++it)
             if(!(*it)->GetKinematic())
             {
                 // Set Inertial's CoG related with the parent link
-                temp = *(*it)->GetInertial();
-                math::Pose pose = (*it)->GetRelativePose();
-                pose.pos += pose.rot.RotateVector(temp.GetCoG());
+                Inertial temp = *(*it)->GetInertial();
+                Pose3d pose = GzGetIgn((**it), RelativePose, ());
+                pose.Pos() += pose.Rot().RotateVector(GzGetIgn(temp, CoG, ()));
                 temp.SetCoG(pose);
                 inertial += temp;
             }
@@ -96,16 +96,16 @@ namespace gazebo_underwater
     void GazeboUnderwater::loadParameters(void)
     {
         waterLevel = getParameter<double>("water_level","meters", 0.0);
-        fluidVelocity = getParameter<math::Vector3>("fluid_velocity","m/s",math::Vector3(0,0,0));
+        fluidVelocity = getParameter<Vector3d>("fluid_velocity","m/s",Vector3d(0,0,0));
         modelInertial = computeModelInertial(model);
 
         // buoyancy must be the difference between the buoyancy when the model is completely submersed and the model weight
         buoyancy = getParameter<double>("buoyancy","N", 5);
-        buoyancy = abs(buoyancy) + modelInertial.GetMass() * model->GetWorld()->GetPhysicsEngine()->GetGravity().GetLength();
+        buoyancy = abs(buoyancy) + GzGet(modelInertial, Mass, ()) * world->Gravity().Length();
         // centerOfBuoyancy must be positioned related to the model's center of gravity.
-        centerOfBuoyancy = getParameter<math::Vector3>("center_of_buoyancy","meters",
-                math::Vector3(0, 0, 0.15));
-        centerOfBuoyancy += modelInertial.GetCoG();
+        centerOfBuoyancy = getParameter<Vector3d>("center_of_buoyancy","meters",
+                Vector3d(0, 0, 0.15));
+        centerOfBuoyancy += GzGetIgn(modelInertial, CoG, ());
         std::string damp_matrices;
         damp_matrices += "[50 0 0 0 0 0;";
         damp_matrices += "0 50 0 0 0 0;";
@@ -130,8 +130,8 @@ namespace gazebo_underwater
         extra_inertia += "0 0 0 0 0 0]";
         addedInertia = convertToMatrix(getParameter<string>("added_inertia","Kg, Kg.m2", extra_inertia));
 
-        gzInertia.top_left = modelInertial.GetMass() * math::Matrix3::IDENTITY;
-        gzInertia.bottom_right = modelInertial.GetMOI();
+        gzInertia.top_left = GzGet(modelInertial, Mass, ()) * Matrix3d::Identity;
+        gzInertia.bottom_right = IgnMatrix3(GzGet(modelInertial, MOI, ()));
         Matrix6 sum_inertia = gzInertia + addedInertia;
         gzmsg << "GazeboUnderwater: Inertia (Model_Inertia + Added_Inertia)" << endl;
         gzmsg << "Inertia top_left:     " << endl << sum_inertia.top_left;
@@ -147,8 +147,8 @@ namespace gazebo_underwater
             gzmsg <<"Damping["<<i<<"] bottom_right: " << endl << dampingCoefficients[i].bottom_right << endl;
         }
 
-        gzmsg << "GazeboUnderwater: Model's weight: "   << modelInertial.GetMass() * model->GetWorld()->GetPhysicsEngine()->GetGravity().GetLength() << " N" << endl;
-        gzmsg << "GazeboUnderwater: Model's CoG: ("     << modelInertial.GetCoG() << ") meters" << endl;
+        gzmsg << "GazeboUnderwater: Model's weight: "   << GzGet(modelInertial, Mass, ()) * model->GetWorld()->Gravity().Length() << " N" << endl;
+        gzmsg << "GazeboUnderwater: Model's CoG: ("     << GzGetIgn(modelInertial, CoG, ()) << ") meters" << endl;
         gzmsg << "GazeboUnderwater: Model's buoyancy: " << buoyancy << " N" << endl;
         gzmsg << "GazeboUnderwater: Model's CoB: ("     << centerOfBuoyancy << ") meters "<< endl;
 
@@ -161,7 +161,7 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::updateBegin(common::UpdateInfo const& info)
     {
-        publishInertia(compInertia, modelInertial.GetCoG());
+        publishInertia(compInertia, GzGetIgn(modelInertial, CoG, ()));
         applyBuoyancy();
         applyDamp();
         applyCoriolisAddedInertia();
@@ -170,7 +170,7 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::applyDamp()
     {
-        double distanceToSurface = waterLevel - link->GetWorldPose().pos.z;
+        double distanceToSurface = waterLevel - GzGetIgn((*link), WorldPose, ()).Pos().Z();
 
         if( distanceToSurface > 0 )
         {
@@ -179,13 +179,13 @@ namespace gazebo_underwater
             Vector6 damp;
             if(dampingCoefficients.size() == 2)
             {
-                Vector6 vel_square(vel.top*vel.top.GetAbs(), vel.bottom*vel.bottom.GetAbs());
+                Vector6 vel_square(vel.top*vel.top.Abs(), vel.bottom*vel.bottom.Abs());
                 damp = dampingCoefficients[0] * vel + dampingCoefficients[1] * vel_square;
             }
             else if(dampingCoefficients.size() == 6)
             {
                 Matrix6 dampMatrix;
-                Vector6 vel_abs(vel.top.GetAbs(), vel.bottom.GetAbs());
+                Vector6 vel_abs(vel.top.Abs(), vel.bottom.Abs());
                 for(size_t i=0; i < 3; i++)
                 {
                     dampMatrix += dampingCoefficients[i] * vel_abs.top[i];
@@ -201,44 +201,44 @@ namespace gazebo_underwater
 
             damp = compInertia * damp;
 
-            link->AddLinkForce(damp.top, modelInertial.GetCoG());
+            link->AddLinkForce(damp.top, GzGetIgn(modelInertial, CoG, ()));
             link->AddRelativeTorque(damp.bottom);
            }
        }
 
     void GazeboUnderwater::applyBuoyancy()
     {
-        double distanceToSurface = waterLevel - link->GetWorldPose().pos.z;
+        double distanceToSurface = waterLevel - GzGetIgn((*link), WorldPose, ()).Pos().Z();
         // The buoyancy is proportional to the submersed volume
         double submersedRatio = calculateSubmersedRatio(distanceToSurface);
 
-        math::Vector3 modelBuoyancy = math::Vector3(0,0,submersedRatio * buoyancy );
+        Vector3d modelBuoyancy = Vector3d(0,0,submersedRatio * buoyancy );
 
         Vector6 effort;
-        effort.top = link->GetWorldPose().rot.RotateVectorReverse(modelBuoyancy);
-        effort.bottom = (centerOfBuoyancy - modelInertial.GetCoG()).Cross(effort.top);
+        effort.top = GzGetIgn((*link), WorldPose, ()).Rot().RotateVectorReverse(modelBuoyancy);
+        effort.bottom = (centerOfBuoyancy - GzGetIgn(modelInertial, CoG, ())).Cross(effort.top);
 
         effort = compInertia * effort;
 
-        link->AddLinkForce(effort.top, modelInertial.GetCoG());
+        link->AddLinkForce(effort.top, GzGetIgn(modelInertial, CoG, ()));
         link->AddRelativeTorque(effort.bottom);
     }
 
     double GazeboUnderwater::calculateSubmersedRatio(double distanceToSurface) const
     {
-        math::Box linkBoudingBox = link->GetBoundingBox();
-        double linkVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() * linkBoudingBox.GetZLength();
+        Box linkBoudingBox = GzGetIgn((*link), BoundingBox, ());
+        double linkVolume = linkBoudingBox.XLength() * linkBoudingBox.YLength() * linkBoudingBox.ZLength();
         double submersedVolume = 0.0;
 
         if(distanceToSurface <= 0.0)
             submersedVolume = 0.0;
         else{
-            if(distanceToSurface <= (linkBoudingBox.GetZLength())/2.0 )
-                submersedVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() *
-                        ( linkBoudingBox.GetZLength()/2.0 + distanceToSurface );
+            if(distanceToSurface <= (linkBoudingBox.ZLength())/2.0 )
+                submersedVolume = linkBoudingBox.XLength() * linkBoudingBox.YLength() *
+                        ( linkBoudingBox.ZLength()/2.0 + distanceToSurface );
             else
-                submersedVolume = linkBoudingBox.GetXLength() * linkBoudingBox.GetYLength() *
-                        linkBoudingBox.GetZLength();
+                submersedVolume = linkBoudingBox.XLength() * linkBoudingBox.YLength() *
+                        linkBoudingBox.ZLength();
         }
         return submersedVolume/linkVolume;
     }
@@ -266,7 +266,7 @@ namespace gazebo_underwater
 
         coriolisEffect = compInertia * coriolisEffect;
 
-        link->AddLinkForce(coriolisEffect.top, modelInertial.GetCoG());
+        link->AddLinkForce(coriolisEffect.top, GzGetIgn(modelInertial, CoG, ()));
         link->AddRelativeTorque(coriolisEffect.bottom);
     }
 
@@ -297,12 +297,12 @@ namespace gazebo_underwater
                     momentum.top.Cross(velocities.top) + momentum.bottom.Cross(velocities.bottom));
 
         // Consider gravity
-        math::Vector3 weight( modelInertial.GetMass() * world->Gravity());
-        effort.top += link->GetWorldPose().rot.RotateVectorReverse( weight );
+        Vector3d weight( GzGet(modelInertial, Mass, ()) * world->Gravity() );
+        effort.top += GzGetIgn((*link), WorldPose, ()).Rot().RotateVectorReverse( weight );
 
         effort = compInertiaEye * effort;
 
-        link->AddLinkForce(effort.top, modelInertial.GetCoG());
+        link->AddLinkForce(effort.top, GzGetIgn(modelInertial, CoG, ()));
         link->AddRelativeTorque(effort.bottom);
     }
 
@@ -345,13 +345,13 @@ namespace gazebo_underwater
             for(size_t j=0; j<6; j++)
             {
                 if(i<3 && j<3)
-                    ret.top_left[i][j] = atof(line.at(j).c_str());
+                    ret.top_left(i,j) = atof(line.at(j).c_str());
                 else if(i<3 && j>=3)
-                    ret.top_right[i][j-3] = atof(line.at(j).c_str());
+                    ret.top_right(i,j-3) = atof(line.at(j).c_str());
                 else if(i>=3 && j<3)
-                    ret.bottom_left[i-3][j] = atof(line.at(j).c_str());
+                    ret.bottom_left(i-3,j) = atof(line.at(j).c_str());
                 else if(i>=3 && j>=3)
-                    ret.bottom_right[i-3][j-3] = atof(line.at(j).c_str());
+                    ret.bottom_right(i-3,j-3) = atof(line.at(j).c_str());
             }
         }
         return ret;
@@ -361,17 +361,18 @@ namespace gazebo_underwater
     {
         Vector6 velocities;
         // Calculates the difference between the model and fluid velocity relative to the world frame
-        math::Vector3 velocityDifference = link->GetWorldLinearVel(modelInertial.GetCoG()) - fluidVelocity;
-        velocities.top = link->GetWorldPose().rot.RotateVectorReverse( velocityDifference );
-        velocities.bottom = link->GetRelativeAngularVel();
+	Vector3d CoG = GzGetIgn(modelInertial, CoG, ());
+        Vector3d velocityDifference = GzGetIgn((*link), WorldLinearVel, (CoG)) - fluidVelocity;
+        velocities.top = GzGetIgn((*link), WorldPose, ()).Rot().RotateVectorReverse( velocityDifference );
+        velocities.bottom = GzGetIgn((*link), RelativeAngularVel, ());
         return velocities;
     }
 
-    void GazeboUnderwater::publishInertia(Matrix6 const& comp_inertia, gazebo::math::Vector3 const& cog)
+    void GazeboUnderwater::publishInertia(Matrix6 const& comp_inertia, Vector3d const& cog)
     {
         CompMassMSG compMassMSG;
         compMassMSG.mutable_matrix()->CopyFrom(comp_inertia.ConvertToMsg());
-        compMassMSG.mutable_cog()->CopyFrom(gazebo::msgs::Convert(cog.Ign()));
+        compMassMSG.mutable_cog()->CopyFrom(gazebo::msgs::Convert(cog));
         if(compensatedMassPublisher->HasConnections())
             compensatedMassPublisher->Publish(compMassMSG);
     }
@@ -383,7 +384,7 @@ namespace gazebo_underwater
         node->Init();
         string topicName = model->GetName() + "/compensated_mass";
         compensatedMassPublisher = node->Advertise<CompMassMSG>("~/" + topicName);
-        gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ model->GetWorld()->GetName()
+        gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ GzGet((*model->GetWorld()), Name, ())
             + "/" + topicName << endl;
     }
 }
