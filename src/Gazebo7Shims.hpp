@@ -7,10 +7,9 @@
 #include <ignition/math/Quaternion.hh>
 
 #include <gazebo/gazebo_config.h>
-#include <gazebo/math/Pose.hh>
-#include <gazebo/math/Matrix3.hh>
 
 #if GAZEBO_MAJOR_VERSION >= 8
+
 namespace gazebo_underwater
 {
     ignition::math::Matrix3d const& IgnMatrix3(ignition::math::Matrix3d const& matrix)
@@ -30,6 +29,9 @@ namespace gazebo_underwater
 #define ToIgn(value) \
 	value
 #else
+
+#include <gazebo/math/Pose.hh>
+#include <gazebo/math/Matrix3.hh>
 
 namespace gazebo_underwater
 {
