@@ -134,17 +134,17 @@ namespace gazebo_underwater
         gzInertia.bottom_right = IgnMatrix3(GzGet(modelInertial, MOI, ()));
         Matrix6 sum_inertia = gzInertia + addedInertia;
         gzmsg << "GazeboUnderwater: Inertia (Model_Inertia + Added_Inertia)" << endl;
-        gzmsg << "Inertia top_left:     " << endl << sum_inertia.top_left;
-        gzmsg << "Inertia top_right:    " << endl << sum_inertia.top_right;
-        gzmsg << "Inertia bottom_left:  " << endl << sum_inertia.bottom_left;
-        gzmsg << "Inertia bottom_right: " << endl << sum_inertia.bottom_right << endl;
+        gzmsg << "Inertia top_left:     " << sum_inertia.top_left     << endl;
+        gzmsg << "Inertia top_right:    " << sum_inertia.top_right    << endl;
+        gzmsg << "Inertia bottom_left:  " << sum_inertia.bottom_left  << endl;
+        gzmsg << "Inertia bottom_right: " << sum_inertia.bottom_right << endl << endl;
 
         for (unsigned int i=0; i<dampingCoefficients.size(); i++)
         {   gzmsg <<"GazeboUnderwater: Damping["<<i<<"]" <<std::endl;
-            gzmsg <<"Damping["<<i<<"] top_left:     " << endl << dampingCoefficients[i].top_left;
-            gzmsg <<"Damping["<<i<<"] top_right:    " << endl << dampingCoefficients[i].top_right;
-            gzmsg <<"Damping["<<i<<"] bottom_left:  " << endl << dampingCoefficients[i].bottom_left;
-            gzmsg <<"Damping["<<i<<"] bottom_right: " << endl << dampingCoefficients[i].bottom_right << endl;
+            gzmsg <<"Damping["<<i<<"] top_left:     " << dampingCoefficients[i].top_left     << endl;                    
+            gzmsg <<"Damping["<<i<<"] top_right:    " << dampingCoefficients[i].top_right    << endl;      
+            gzmsg <<"Damping["<<i<<"] bottom_left:  " << dampingCoefficients[i].bottom_left  << endl;        
+            gzmsg <<"Damping["<<i<<"] bottom_right: " << dampingCoefficients[i].bottom_right << endl << endl;                 
         }
 
         gzmsg << "GazeboUnderwater: Model's weight: "   << GzGet(modelInertial, Mass, ()) * model->GetWorld()->Gravity().Length() << " N" << endl;
