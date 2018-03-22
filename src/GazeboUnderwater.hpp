@@ -37,6 +37,8 @@ namespace gazebo_underwater
 
             std::vector<Matrix6> convertToMatrices(const std::string &matrices);
             Matrix6 convertToMatrix(const std::string &matrix);
+            ignition::math::Matrix3d crossProductOperator(ignition::math::Vector3d const& vec);
+
 
             ModelPtr model;
             WorldPtr world;

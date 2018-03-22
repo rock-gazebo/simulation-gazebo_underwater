@@ -387,4 +387,9 @@ namespace gazebo_underwater
         gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ GzGet((*model->GetWorld()), Name, ())
             + "/" + topicName << endl;
     }
+
+    Matrix3d GazeboUnderwater::crossProductOperator(Vector3d const& vec)
+    {
+        return Matrix3d(0, -vec.Z(), vec.Y(), vec.Z(), 0, -vec.X(), -vec.Y(), vec.X(), 0);
+    }
 }
