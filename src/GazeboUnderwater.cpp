@@ -310,15 +310,19 @@ namespace gazebo_underwater
     {
         std::vector<Matrix6> ret;
         std::string rest_matrix = matrices;
+        size_t start = 0;
         size_t end = 0;
-        while(!rest_matrix.empty() && end!=std::string::npos)
+        while(!rest_matrix.empty() && start!=std::string::npos && end!=std::string::npos)
         {
+            start = rest_matrix.find("[");
             end = rest_matrix.find("]");
-            if (end != std::string::npos)
+            if (start!=std::string::npos && end!=std::string::npos && start < end)
             {
-                ret.push_back(convertToMatrix(rest_matrix.substr(0, end+1)));
+                ret.push_back(convertToMatrix(rest_matrix.substr(start, end+1)));
                 rest_matrix = rest_matrix.substr((end+1), rest_matrix.size()-1);
             }
+            else
+                gzthrow("GazeboUnderwater: Damping Parameters is not delimited by \"[ ]\"!");
         }
         if (ret.size() != 2 && ret.size() != 6)
             gzthrow("GazeboUnderwater: Damping Parameters has not 2 or 6 matrices!");
@@ -330,7 +334,7 @@ namespace gazebo_underwater
         Matrix6 ret;
         std::vector<std::string> splitted;
         if(matrix.compare(0,1,"[") || matrix.compare((matrix.size()-1),1,"]"))
-            gzthrow("GazeboUnderwater: Matrix is not delimetd by \"[ ]\"!");
+            gzthrow("GazeboUnderwater: Matrix is not delimited by \"[ ]\"!");
         std::string numeric_matrix = matrix.substr(1,matrix.size()-2);
         boost::split( splitted, numeric_matrix, boost::is_any_of( ";" ), boost::token_compress_on );
         if (splitted.size() != 6)
