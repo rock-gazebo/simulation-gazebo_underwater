@@ -1,14 +1,11 @@
 #ifndef GAZEBO_7_SHIMS_HPP
 #define GAZEBO_7_SHIMS_HPP
 
+#include <gazebo/gazebo_config.h>
 #include <ignition/math/Vector3.hh>
 #include <ignition/math/Matrix3.hh>
 #include <ignition/math/Pose3.hh>
 #include <ignition/math/Quaternion.hh>
-
-#include <gazebo/gazebo_config.h>
-#include <gazebo/math/Pose.hh>
-#include <gazebo/math/Matrix3.hh>
 
 #if GAZEBO_MAJOR_VERSION >= 8
 namespace gazebo_underwater
@@ -30,6 +27,9 @@ namespace gazebo_underwater
 #define ToIgn(value) \
 	value
 #else
+
+#include <gazebo/math/Pose.hh>
+#include <gazebo/math/Matrix3.hh>
 
 namespace gazebo_underwater
 {
