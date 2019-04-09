@@ -309,16 +309,12 @@ namespace gazebo_underwater
     std::vector<Matrix6> GazeboUnderwater::convertToMatrices(const std::string &matrices)
     {
         std::vector<Matrix6> ret;
-        std::string rest_matrix = matrices;
-        size_t end = 0;
-        while(!rest_matrix.empty() && end!=std::string::npos)
+        size_t start = matrices.find("[");
+        while(start != string::npos)
         {
-            end = rest_matrix.find("]");
-            if (end != std::string::npos)
-            {
-                ret.push_back(convertToMatrix(rest_matrix.substr(0, end+1)));
-                rest_matrix = rest_matrix.substr((end+1), rest_matrix.size()-1);
-            }
+            size_t end = matrices.find("]", start);
+            ret.push_back(convertToMatrix(matrices.substr(start, end+1)));
+            start = matrices.find("[", end + 1);
         }
         if (ret.size() != 2 && ret.size() != 6)
             gzthrow("GazeboUnderwater: Damping Parameters has not 2 or 6 matrices!");
@@ -361,7 +357,7 @@ namespace gazebo_underwater
     {
         Vector6 velocities;
         // Calculates the difference between the model and fluid velocity relative to the world frame
-	Vector3d CoG = GzGetIgn(modelInertial, CoG, ());
+        Vector3d CoG = GzGetIgn(modelInertial, CoG, ());
         Vector3d velocityDifference = GzGetIgn((*link), WorldLinearVel, (CoG)) - fluidVelocity;
         velocities.top = GzGetIgn((*link), WorldPose, ()).Rot().RotateVectorReverse( velocityDifference );
         velocities.bottom = GzGetIgn((*link), RelativeAngularVel, ());
