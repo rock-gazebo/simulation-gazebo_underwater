@@ -170,49 +170,38 @@ namespace gazebo_underwater
 
     void GazeboUnderwater::applyDamp()
     {
-        double distanceToSurface = waterLevel - GzGetIgn((*link), WorldPose, ()).Pos().Z();
+        Vector6 vel = getModelFrameVelocities();
 
-        if( distanceToSurface > 0 )
+        Vector6 damp;
+        if(dampingCoefficients.size() == 2)
         {
-            Vector6 vel = getModelFrameVelocities();
-
-            Vector6 damp;
-            if(dampingCoefficients.size() == 2)
+            Vector6 vel_square(vel.top*vel.top.Abs(), vel.bottom*vel.bottom.Abs());
+            damp = dampingCoefficients[0] * vel + dampingCoefficients[1] * vel_square;
+        }
+        else if(dampingCoefficients.size() == 6)
+        {
+            Matrix6 dampMatrix;
+            Vector6 vel_abs(vel.top.Abs(), vel.bottom.Abs());
+            for(size_t i=0; i < 3; i++)
             {
-                Vector6 vel_square(vel.top*vel.top.Abs(), vel.bottom*vel.bottom.Abs());
-                damp = dampingCoefficients[0] * vel + dampingCoefficients[1] * vel_square;
+                dampMatrix += dampingCoefficients[i] * vel_abs.top[i];
+                dampMatrix += dampingCoefficients[i+3] * vel_abs.bottom[i];
             }
-            else if(dampingCoefficients.size() == 6)
-            {
-                Matrix6 dampMatrix;
-                Vector6 vel_abs(vel.top.Abs(), vel.bottom.Abs());
-                for(size_t i=0; i < 3; i++)
-                {
-                    dampMatrix += dampingCoefficients[i] * vel_abs.top[i];
-                    dampMatrix += dampingCoefficients[i+3] * vel_abs.bottom[i];
-                }
-                damp = dampMatrix * vel;
-            }
-            else
-              gzthrow("GazeboUnderwater: Damping Parameter has wrong dimension!");
-            // Define damping as proportional to the submerged volume.
-            // Add minus for indicate resistence efforts.
-            damp *= -calculateSubmersedRatio(distanceToSurface);
+            damp = dampMatrix * vel;
+        }
+        else
+            gzthrow("GazeboUnderwater: Damping Parameter has wrong dimension!");
 
-            damp = compInertia * damp;
+        damp = compInertia * damp * -1.0;
 
-            link->AddLinkForce(damp.top, GzGetIgn(modelInertial, CoG, ()));
-            link->AddRelativeTorque(damp.bottom);
-           }
-       }
+        link->AddLinkForce(damp.top, GzGetIgn(modelInertial, CoG, ()));
+        link->AddRelativeTorque(damp.bottom);
+    }
 
     void GazeboUnderwater::applyBuoyancy()
     {
-        double distanceToSurface = waterLevel - GzGetIgn((*link), WorldPose, ()).Pos().Z();
-        // The buoyancy is proportional to the submersed volume
-        double submersedRatio = calculateSubmersedRatio(distanceToSurface);
-
-        Vector3d modelBuoyancy = Vector3d(0,0,submersedRatio * buoyancy );
+        double submersedRatio = calculateSubmersedRatio();
+        Vector3d modelBuoyancy = Vector3d(0, 0, submersedRatio * buoyancy);
 
         Vector6 effort;
         effort.top = GzGetIgn((*link), WorldPose, ()).Rot().RotateVectorReverse(modelBuoyancy);
@@ -224,23 +213,20 @@ namespace gazebo_underwater
         link->AddRelativeTorque(effort.bottom);
     }
 
-    double GazeboUnderwater::calculateSubmersedRatio(double distanceToSurface) const
+    double GazeboUnderwater::calculateSubmersedRatio() const
     {
-        Box linkBoudingBox = GzGetIgn((*link), BoundingBox, ());
-        double linkVolume = linkBoudingBox.XLength() * linkBoudingBox.YLength() * linkBoudingBox.ZLength();
-        double submersedVolume = 0.0;
+        Box linkBoundingBox = GzGetIgn((*link), BoundingBox, ());
+        // Distance of the lower part of the bounding box to the surface
+        // It is positive when submerged
+        double distanceToSurface = waterLevel - GzGetIgn((*link), WorldPose, ()).Pos().Z()
+            - linkBoundingBox.Min().Z();
 
-        if(distanceToSurface <= 0.0)
-            submersedVolume = 0.0;
-        else{
-            if(distanceToSurface <= (linkBoudingBox.ZLength())/2.0 )
-                submersedVolume = linkBoudingBox.XLength() * linkBoudingBox.YLength() *
-                        ( linkBoudingBox.ZLength()/2.0 + distanceToSurface );
-            else
-                submersedVolume = linkBoudingBox.XLength() * linkBoudingBox.YLength() *
-                        linkBoudingBox.ZLength();
-        }
-        return submersedVolume/linkVolume;
+        double submersedRatio = distanceToSurface / linkBoundingBox.ZLength();
+        if (submersedRatio < 0)
+            return 0;
+        else if (submersedRatio > 1)
+            return 1;
+        else return submersedRatio;
     }
 
     void GazeboUnderwater::applyCoriolisAddedInertia()
@@ -309,16 +295,12 @@ namespace gazebo_underwater
     std::vector<Matrix6> GazeboUnderwater::convertToMatrices(const std::string &matrices)
     {
         std::vector<Matrix6> ret;
-        std::string rest_matrix = matrices;
-        size_t end = 0;
-        while(!rest_matrix.empty() && end!=std::string::npos)
+        size_t start = matrices.find("[");
+        while(start != string::npos)
         {
-            end = rest_matrix.find("]");
-            if (end != std::string::npos)
-            {
-                ret.push_back(convertToMatrix(rest_matrix.substr(0, end+1)));
-                rest_matrix = rest_matrix.substr((end+1), rest_matrix.size()-1);
-            }
+            size_t end = matrices.find("]", start);
+            ret.push_back(convertToMatrix(matrices.substr(start, end+1)));
+            start = matrices.find("[", end + 1);
         }
         if (ret.size() != 2 && ret.size() != 6)
             gzthrow("GazeboUnderwater: Damping Parameters has not 2 or 6 matrices!");
@@ -361,7 +343,7 @@ namespace gazebo_underwater
     {
         Vector6 velocities;
         // Calculates the difference between the model and fluid velocity relative to the world frame
-	Vector3d CoG = GzGetIgn(modelInertial, CoG, ());
+        Vector3d CoG = GzGetIgn(modelInertial, CoG, ());
         Vector3d velocityDifference = GzGetIgn((*link), WorldLinearVel, (CoG)) - fluidVelocity;
         velocities.top = GzGetIgn((*link), WorldPose, ()).Rot().RotateVectorReverse( velocityDifference );
         velocities.bottom = GzGetIgn((*link), RelativeAngularVel, ());
