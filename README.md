@@ -46,11 +46,11 @@ available parameters, as well as their defaults:
        mass (in kg). The bottom-right block applies to the moments of inertia (kg.m2)
   -->
   <added_inertia>
-  [ 0  0  0  0  0  0
-    0  0  0  0  0  0
-    0  0  0  0  0  0
-    0  0  0  0  0  0
-    0  0  0  0  0  0
+  [ 0  0  0  0  0  0;
+    0  0  0  0  0  0;
+    0  0  0  0  0  0;
+    0  0  0  0  0  0;
+    0  0  0  0  0  0;
     0  0  0  0  0  0]
   </added_inertia>
 </plugin>
