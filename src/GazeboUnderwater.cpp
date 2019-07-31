@@ -364,9 +364,20 @@ namespace gazebo_underwater
         // Initialize communication node and subscribe to gazebo topic
         node = transport::NodePtr(new transport::Node());
         node->Init();
+
         string topicName = model->GetName() + "/compensated_mass";
         compensatedMassPublisher = node->Advertise<CompMassMSG>("~/" + topicName);
         gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ GzGet((*model->GetWorld()), Name, ())
             + "/" + topicName << endl;
+
+        topicName = model->GetName() + "/fluid_velocity";
+        fluidVelocitySubscriber = node->Subscribe(
+            "~/" + topicName, &GazeboUnderwater::readFluidVelocity, this, true);
+        gzmsg <<"GazeboUnderwater: created gazebo topic /gazebo/"+ GzGet((*model->GetWorld()), Name, ())
+            + "/" + topicName << endl;
+    }
+
+    void GazeboUnderwater::readFluidVelocity(const ConstVector3dPtr& velocity) {
+        fluidVelocity = Vector3d(velocity->x(), velocity->y(), velocity->z());
     }
 }
