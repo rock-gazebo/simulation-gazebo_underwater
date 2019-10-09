@@ -34,6 +34,7 @@ namespace gazebo_underwater
             Vector6 getModelFrameVelocities();
             void publishInertia(Matrix6 const& comp_inertia, ignition::math::Vector3d const& cog);
             void initComNode(void);
+            void readFluidVelocity(const ConstVector3dPtr&);
 
             std::vector<Matrix6> convertToMatrices(const std::string &matrices);
             Matrix6 convertToMatrix(const std::string &matrix);
@@ -43,6 +44,7 @@ namespace gazebo_underwater
             LinkPtr link;
             gazebo::transport::NodePtr node;
             gazebo::transport::PublisherPtr compensatedMassPublisher;
+            gazebo::transport::SubscriberPtr fluidVelocitySubscriber;
             Inertial modelInertial;
 
             sdf::ElementPtr sdf;
