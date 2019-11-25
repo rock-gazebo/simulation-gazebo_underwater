@@ -219,7 +219,7 @@ namespace gazebo_underwater
         // Distance of the lower part of the bounding box to the surface
         // It is positive when submerged
         double distanceToSurface = waterLevel - GzGetIgn((*link), WorldPose, ()).Pos().Z()
-            - linkBoundingBox.Min().Z();
+            + linkBoundingBox.Min().Z();
 
         double submersedRatio = distanceToSurface / linkBoundingBox.ZLength();
         if (submersedRatio < 0)
