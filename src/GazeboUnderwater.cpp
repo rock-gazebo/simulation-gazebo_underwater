@@ -202,7 +202,6 @@ namespace gazebo_underwater
     {
         double submersedRatio = calculateSubmersedRatio();
         Vector3d modelBuoyancy = Vector3d(0, 0, submersedRatio * buoyancy);
-
         Vector6 effort;
         effort.top = GzGetIgn((*link), WorldPose, ()).Rot().RotateVectorReverse(modelBuoyancy);
         effort.bottom = (centerOfBuoyancy - GzGetIgn(modelInertial, CoG, ())).Cross(effort.top);
@@ -218,10 +217,9 @@ namespace gazebo_underwater
         Box linkBoundingBox = GzGetIgn((*link), BoundingBox, ());
         // Distance of the lower part of the bounding box to the surface
         // It is positive when submerged
-        double distanceToSurface = waterLevel - GzGetIgn((*link), WorldPose, ()).Pos().Z()
-            + linkBoundingBox.Min().Z();
-
+        double distanceToSurface = waterLevel - linkBoundingBox.Min().Z();
         double submersedRatio = distanceToSurface / linkBoundingBox.ZLength();
+        
         if (submersedRatio < 0)
             return 0;
         else if (submersedRatio > 1)
