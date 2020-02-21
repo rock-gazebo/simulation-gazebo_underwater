@@ -184,7 +184,7 @@ struct Vector6
     }
 };
 
-Vector6 operator*(const Matrix6 &matrix, const Vector6 &vector)
+inline Vector6 operator*(const Matrix6 &matrix, const Vector6 &vector)
 {
     Vector6 result;
     result.top = matrix.top_left*vector.top + matrix.top_right*vector.bottom;
