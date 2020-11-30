@@ -94,6 +94,13 @@ struct Matrix6
          return inv;
     }
 
+    static inline Matrix6 Zero()
+    {
+        return Matrix6(
+            Matrix3d::Zero, Matrix3d::Zero, Matrix3d::Zero, Matrix3d::Zero
+        );
+    }
+
     static inline Matrix6 Identity()
     {
        return Matrix6(
