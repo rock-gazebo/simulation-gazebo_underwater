@@ -11,19 +11,21 @@ namespace gazebo_underwater
 
 struct Matrix6
 {
-    ignition::math::Matrix3d top_left;
-    ignition::math::Matrix3d top_right;
-    ignition::math::Matrix3d bottom_left;
-    ignition::math::Matrix3d bottom_right;
+    typedef ignition::math::Matrix3d Matrix3d;
+
+    Matrix3d top_left;
+    Matrix3d top_right;
+    Matrix3d bottom_left;
+    Matrix3d bottom_right;
 
     Matrix6():
-        top_left(ignition::math::Matrix3d::Zero),
-        top_right(ignition::math::Matrix3d::Zero),
-        bottom_left(ignition::math::Matrix3d::Zero),
-        bottom_right(ignition::math::Matrix3d::Zero)
+        top_left(Matrix3d::Zero),
+        top_right(Matrix3d::Zero),
+        bottom_left(Matrix3d::Zero),
+        bottom_right(Matrix3d::Zero)
     {}
-    Matrix6(const ignition::math::Matrix3d &tl, const ignition::math::Matrix3d &tr,
-                const ignition::math::Matrix3d &bl, const ignition::math::Matrix3d &br):
+    Matrix6(const Matrix3d &tl, const Matrix3d &tr,
+                const Matrix3d &bl, const Matrix3d &br):
         top_left(tl),
         top_right(tr),
         bottom_left(bl),
@@ -64,26 +66,27 @@ struct Matrix6
         this->bottom_right = this->bottom_left * value.top_right + this->bottom_right * value.bottom_right;
         return *this;
     }
-    bool operator==(const Matrix6 &value)
+    bool operator==(const Matrix6 &value) const
     {
         return (value.top_left == this->top_left) &&
                (value.top_right == this->top_right) &&
                (value.bottom_left == this->bottom_left) &&
                (value.bottom_right == this->bottom_right);
     }
-    bool operator!=(const Matrix6 &value)
+    bool operator!=(const Matrix6 &value) const
     {
         return !(*this == value);
     }
-   Matrix6 Inverse()
+
+    Matrix6 Inverse()
     {
         /** Inversion by blocks
          * [A, B;⁻¹ = [(A - BD⁻¹C)⁻¹, -A⁻¹B(D - CA⁻¹B)⁻¹;
          *  C, D]      -D⁻¹C(A - BD⁻¹C)⁻¹, (D - CA⁻¹B)⁻¹]
          */
          Matrix6 inv;
-         ignition::math::Matrix3d Sd = (this->top_left - this->top_right*this->bottom_right.Inverse()*this->bottom_left).Inverse();
-         ignition::math::Matrix3d Sa = (this->bottom_right - this->bottom_left*this->top_left.Inverse()*this->top_right).Inverse();
+         Matrix3d Sd = (this->top_left - this->top_right*this->bottom_right.Inverse()*this->bottom_left).Inverse();
+         Matrix3d Sa = (this->bottom_right - this->bottom_left*this->top_left.Inverse()*this->top_right).Inverse();
          inv.top_left = Sd;
          inv.top_right = this->top_left.Inverse()*this->top_right*Sa*(-1);
          inv.bottom_left = this->bottom_right.Inverse()*this->bottom_left*Sd*(-1);
@@ -91,13 +94,21 @@ struct Matrix6
          return inv;
     }
 
-    static inline Matrix6 Identity()
+    static inline Matrix6 Zero()
     {
-       return  Matrix6(ignition::math::Matrix3d::Identity, ignition::math::Matrix3d::Zero,
-               ignition::math::Matrix3d::Zero, ignition::math::Matrix3d::Identity);
+        return Matrix6(
+            Matrix3d::Zero, Matrix3d::Zero, Matrix3d::Zero, Matrix3d::Zero
+        );
     }
 
-    inline gazebo_underwater::msgs::Matrix3 ConvertToMsg(const ignition::math::Matrix3d &matrix) const
+    static inline Matrix6 Identity()
+    {
+       return Matrix6(
+           Matrix3d::Identity, Matrix3d::Zero, Matrix3d::Zero, Matrix3d::Identity
+        );
+    }
+
+    inline gazebo_underwater::msgs::Matrix3 ConvertToMsg(const Matrix3d &matrix) const
     {
         ignition::math::Vector3d vec;
         gazebo_underwater::msgs::Matrix3 msg;
@@ -120,9 +131,9 @@ struct Matrix6
         return msg;
     }
 
-    static inline ignition::math::Matrix3d ConvertFromMsg(const gazebo_underwater::msgs::Matrix3 &msg)
+    static inline Matrix3d ConvertFromMsg(const gazebo_underwater::msgs::Matrix3 &msg)
     {
-        ignition::math::Matrix3d matrix;
+        Matrix3d matrix;
         matrix.Axes(gazebo::msgs::ConvertIgn(msg.x()),
                 gazebo::msgs::ConvertIgn(msg.y()),
                 gazebo::msgs::ConvertIgn(msg.z()));
