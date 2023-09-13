@@ -220,7 +220,7 @@ namespace gazebo_underwater
         // It is positive when submerged
         double distanceToSurface = waterLevel - linkBoundingBox.Min().Z();
         double submersedRatio = distanceToSurface / linkBoundingBox.ZLength();
-        
+
         if (submersedRatio < 0)
             return 0;
         else if (submersedRatio > 1)
@@ -364,10 +364,10 @@ namespace gazebo_underwater
         node = transport::NodePtr(new transport::Node());
         node->Init();
 
-        string topicName = model->GetName() + "/compensated_mass";
-        compensatedMassPublisher = node->Advertise<CompMassMSG>("~/" + topicName);
-        gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ GzGet((*model->GetWorld()), Name, ())
-            + "/" + topicName << endl;
+        string topicName = "~/" + model->GetName() + "/compensated_mass";
+        compensatedMassPublisher = node->Advertise<CompMassMSG>(topicName);
+        gzmsg <<"GazeboUnderwater: advertinsing gazebo topic "
+              << compensatedMassPublisher->GetTopic() << endl;
 
         const std::string plugin_name = sdf->Get<std::string>("name");
         topicName = '/' + std::regex_replace(plugin_name, std::regex("__"), "/")
