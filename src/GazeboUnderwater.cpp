@@ -4,6 +4,7 @@
 #include <boost/algorithm/string/regex.hpp>
 #include <boost/regex.hpp>
 #include <stdlib.h>
+#include <regex>
 
 using namespace std;
 using namespace gazebo;
@@ -368,11 +369,12 @@ namespace gazebo_underwater
         gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ GzGet((*model->GetWorld()), Name, ())
             + "/" + topicName << endl;
 
-        topicName = model->GetName() + "/fluid_velocity";
+        const std::string plugin_name = sdf->Get<std::string>("name");
+        topicName = '/' + std::regex_replace(plugin_name, std::regex("__"), "/")
+                        + "/fluid_velocity";
         fluidVelocitySubscriber = node->Subscribe(
-            "~/" + topicName, &GazeboUnderwater::readFluidVelocity, this, true);
-        gzmsg <<"GazeboUnderwater: created gazebo topic /gazebo/"+ GzGet((*model->GetWorld()), Name, ())
-            + "/" + topicName << endl;
+            topicName, &GazeboUnderwater::readFluidVelocity, this, true);
+        gzmsg <<"GazeboUnderwater: subscribing to gazebo topic " << topicName << endl;
     }
 
     void GazeboUnderwater::readFluidVelocity(const ConstVector3dPtr& velocity) {
