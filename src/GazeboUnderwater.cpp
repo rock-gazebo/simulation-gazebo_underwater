@@ -4,6 +4,7 @@
 #include <boost/algorithm/string/regex.hpp>
 #include <boost/regex.hpp>
 #include <stdlib.h>
+#include <regex>
 
 using namespace std;
 using namespace gazebo;
@@ -219,7 +220,7 @@ namespace gazebo_underwater
         // It is positive when submerged
         double distanceToSurface = waterLevel - linkBoundingBox.Min().Z();
         double submersedRatio = distanceToSurface / linkBoundingBox.ZLength();
-        
+
         if (submersedRatio < 0)
             return 0;
         else if (submersedRatio > 1)
@@ -363,16 +364,17 @@ namespace gazebo_underwater
         node = transport::NodePtr(new transport::Node());
         node->Init();
 
-        string topicName = model->GetName() + "/compensated_mass";
-        compensatedMassPublisher = node->Advertise<CompMassMSG>("~/" + topicName);
-        gzmsg <<"GazeboUnderwater: create gazebo topic /gazebo/"+ GzGet((*model->GetWorld()), Name, ())
-            + "/" + topicName << endl;
+        string topicName = "~/" + model->GetName() + "/compensated_mass";
+        compensatedMassPublisher = node->Advertise<CompMassMSG>(topicName);
+        gzmsg <<"GazeboUnderwater: advertinsing gazebo topic "
+              << compensatedMassPublisher->GetTopic() << endl;
 
-        topicName = model->GetName() + "/fluid_velocity";
+        const std::string plugin_name = sdf->Get<std::string>("name");
+        topicName = '/' + std::regex_replace(plugin_name, std::regex("__"), "/")
+                        + "/fluid_velocity";
         fluidVelocitySubscriber = node->Subscribe(
-            "~/" + topicName, &GazeboUnderwater::readFluidVelocity, this, true);
-        gzmsg <<"GazeboUnderwater: created gazebo topic /gazebo/"+ GzGet((*model->GetWorld()), Name, ())
-            + "/" + topicName << endl;
+            topicName, &GazeboUnderwater::readFluidVelocity, this, true);
+        gzmsg <<"GazeboUnderwater: subscribing to gazebo topic " << topicName << endl;
     }
 
     void GazeboUnderwater::readFluidVelocity(const ConstVector3dPtr& velocity) {
