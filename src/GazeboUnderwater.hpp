@@ -30,7 +30,8 @@ namespace gazebo_underwater
             template <typename T>
             T getParameter(std::string parameter_name, std::string dimension, T default_value) const;
             double calculateSubmersedRatio() const;
-            Inertial computeModelInertial(ModelPtr model) const;
+            Inertial computeModelInertial(ModelPtr model, LinkPtr link, sdf::ElementPtr sdf) const;
+            Inertial computeLinkInertial(LinkPtr current_link) const;
             Vector6 getModelFrameVelocities();
             void publishInertia(Matrix6 const& comp_inertia, ignition::math::Vector3d const& cog);
             void initComNode(void);
