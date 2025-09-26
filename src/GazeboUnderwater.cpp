@@ -83,17 +83,18 @@ namespace gazebo_underwater
         inertial.SetMOI(GzMatrix3(Matrix3d::Zero));
         physics::Link_V links = model->GetLinks();
 
-        if(sdf->HasElement("recursive_inertia_calculation")) {
-            for (physics::Link_V::iterator it = links.begin(); it != links.end(); ++it)
-                if(!(*it)->GetKinematic())
-                {
-                    // Set Inertial's CoG related with the parent link
-                    inertial += computeLinkInertial(*it);
-                }
-            return inertial;
+        if(sdf->HasElement("disable_recursive_inertia_calculation") &&
+           sdf->Get<bool>("disable_recursive_inertia_calculation")) {
+            return computeLinkInertial(link);
         }
 
-        return computeLinkInertial(link);
+        for (physics::Link_V::iterator it = links.begin(); it != links.end(); ++it)
+            if(!(*it)->GetKinematic())
+            {
+                // Set Inertial's CoG related with the parent link
+                inertial += computeLinkInertial(*it);
+            }
+        return inertial;
     }
 
     physics::Inertial GazeboUnderwater::computeLinkInertial(LinkPtr current_link) const {
