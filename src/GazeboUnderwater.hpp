@@ -25,7 +25,6 @@ namespace gazebo_underwater
             void applyDamp();
             void applyCoriolisAddedInertia();
             void compensateGzEffort();
-            LinkPtr getReferenceLink(ModelPtr model, sdf::ElementPtr sdf) const;
             void loadParameters();
             template <typename T>
             T getParameter(std::string parameter_name, std::string dimension, T default_value) const;

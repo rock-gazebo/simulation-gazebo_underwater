@@ -103,11 +103,6 @@ static string resolveLinkScopeFromDoubleUndescoredPluginName(
     auto relative_scope = plugin_name.substr(expected_prefix.size() + 2,
         rfind - expected_prefix.size() - 2);
 
-    cout << "name: " << plugin_name << "\n";
-    cout << "expected: " << expected_prefix << "\n";
-    cout << "rfind: " << rfind << "\n";
-    cout << "relative_scope: " << relative_scope << "\n";
-
     return regex_replace(relative_scope, regex("__"), "::");
 }
 
@@ -117,9 +112,13 @@ static string resolvePluginParentScope(gazebo::physics::ModelPtr model,
     if (plugin_name.find("__") != string::npos) {
         return resolveLinkScopeFromDoubleUndescoredPluginName(model, plugin_name);
     }
-    else {
-        return plugin_name.substr(0, plugin_name.rfind("::"));
+
+    auto rfind = plugin_name.rfind("::");
+    if (rfind == string::npos) {
+        return "";
     }
+
+    return plugin_name.substr(0, rfind);
 }
 
 static string applyScope(string const& scope, string const& name)
