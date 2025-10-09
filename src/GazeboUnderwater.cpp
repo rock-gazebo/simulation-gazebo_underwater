@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <regex>
 
+#include "RockGazeboHelpers.hpp"
+
 using namespace std;
 using namespace gazebo;
 using namespace ignition::math;
@@ -21,15 +23,15 @@ namespace gazebo_underwater
         node->Fini();
     }
 
-    void GazeboUnderwater::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
+    void GazeboUnderwater::Load(physics::ModelPtr _model, sdf::ElementPtr _plugin_sdf)
     {
         gzmsg << "GazeboUnderwater: Loading underwater environment." << endl;
 
-        sdf = _sdf;
+        sdf = _plugin_sdf;
 
         model = _model;
         world = _model->GetWorld();
-        link  = getReferenceLink(model, _sdf);
+        link  = rock_gazebo_helpers::resolveLinkWithDefault(model, _plugin_sdf, "link_name");
         initComNode();
         loadParameters();
 
@@ -53,27 +55,6 @@ namespace gazebo_underwater
                     << default_value << ") " + dimension << endl;
         }
         return var;
-    }
-
-    physics::LinkPtr GazeboUnderwater::getReferenceLink(physics::ModelPtr model, sdf::ElementPtr sdf) const
-    {
-        if(sdf->HasElement("link_name"))
-        {
-            physics::LinkPtr link = model->GetLink( sdf->Get<string>("link_name") );
-            gzmsg << "GazeboUnderwater: reference link: " << link->GetName() << endl;
-            if (!link) {
-                string msg = "GazeboUnderwater: link " + sdf->Get<string>("link_name")
-                        + " not found in model " + model->GetName();
-                gzthrow(msg);
-            }
-            return link;
-        }else if (model->GetLinks().empty()) {
-            gzthrow("GazeboUnderwater: no link defined in model");
-        }else{
-            physics::LinkPtr link = model->GetLinks().front();
-            gzmsg << "GazeboUnderwater: reference link not defined, using instead: " << link->GetName() << endl;
-            return link;
-        }
     }
 
     physics::Inertial GazeboUnderwater::computeModelInertial(

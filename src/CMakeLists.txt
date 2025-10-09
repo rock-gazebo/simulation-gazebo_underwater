@@ -27,7 +27,7 @@ rock_library(gazebo_underwater_msgs
     DEPS_PKGCONFIG gazebo protobuf)
 
 rock_library(gazebo_underwater
-    SOURCES GazeboUnderwater.cpp
+    SOURCES GazeboUnderwater.cpp RockGazeboHelpers.cpp
     HEADERS GazeboUnderwater.hpp
     ${__boost_deps}
     DEPS_PKGCONFIG gazebo
