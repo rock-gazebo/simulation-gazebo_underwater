@@ -80,10 +80,10 @@ namespace gazebo_underwater
 
     physics::Inertial GazeboUnderwater::computeLinkInertial(LinkPtr current_link) const {
         physics::Inertial link_inertial = *current_link->GetInertial();
-        Pose3d pose =
-            GzGetIgn((*current_link), RelativePose, ()) - GzGetIgn((*current_link), WorldPose, ());
-        pose.Pos() += pose.Rot().RotateVector(GzGetIgn(link_inertial, CoG, ()));
-        link_inertial.SetCoG(pose);
+        Pose3d link2model = GzGetIgn((*current_link), RelativePose, ());
+        Pose3d linkCoG2model = link2model;
+        linkCoG2model.Pos() = link2model.Pos() + link2model.Rot().RotateVector(GzGetIgn(link_inertial, CoG, ()));
+        link_inertial.SetCoG(linkCoG2model);
 
         return link_inertial;
     }
