@@ -60,14 +60,14 @@ namespace gazebo_underwater
     physics::Inertial GazeboUnderwater::computeModelInertial(
         physics::ModelPtr model, physics::LinkPtr link, sdf::ElementPtr sdf) const
     {
-        Inertial inertial(0);
-        inertial.SetMOI(GzMatrix3(Matrix3d::Zero));
-        physics::Link_V links = model->GetLinks();
-
         if(sdf->HasElement("inertial_calculation_using_main_link_only") &&
            sdf->Get<bool>("inertial_calculation_using_main_link_only")) {
             return computeLinkInertial(link);
         }
+
+        Inertial inertial(0);
+        inertial.SetMOI(GzMatrix3(Matrix3d::Zero));
+        physics::Link_V links = model->GetLinks();
 
         for (physics::Link_V::iterator it = links.begin(); it != links.end(); ++it)
             if(!(*it)->GetKinematic())
