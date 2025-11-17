@@ -60,9 +60,9 @@ namespace gazebo_underwater
     physics::Inertial GazeboUnderwater::computeModelInertial(
         physics::ModelPtr model, physics::LinkPtr link, sdf::ElementPtr sdf) const
     {
-        if(sdf->HasElement("inertial_calculation_using_main_link_only") &&
-           sdf->Get<bool>("inertial_calculation_using_main_link_only")) {
-            return computeLinkInertial(link);
+        if (sdf->HasElement("inertial_calculation_using_main_link_only") &&
+            sdf->Get<bool>("inertial_calculation_using_main_link_only")) {
+            return computeLinkInertial(link, link);
         }
 
         Inertial inertial(0);
@@ -73,17 +73,23 @@ namespace gazebo_underwater
             if(!(*it)->GetKinematic())
             {
                 // Set Inertial's CoG related with the parent link
-                inertial += computeLinkInertial(*it);
+                inertial += computeLinkInertial(*it, link);
             }
         return inertial;
     }
 
-    physics::Inertial GazeboUnderwater::computeLinkInertial(LinkPtr current_link) const {
+    physics::Inertial GazeboUnderwater::computeLinkInertial(LinkPtr current_link,
+        LinkPtr ref_link) const
+    {
         physics::Inertial link_inertial = *current_link->GetInertial();
         Pose3d link2model = GzGetIgn((*current_link), RelativePose, ());
-        Pose3d linkCoG2model = link2model;
-        linkCoG2model.Pos() = link2model.Pos() + link2model.Rot().RotateVector(GzGetIgn(link_inertial, CoG, ()));
-        link_inertial.SetCoG(linkCoG2model);
+        Pose3d ref_link2model = GzGetIgn((*current_link), RelativePose, ());
+        Pose3d link2ref_link = ref_link2model.Inverse() * link2model;
+        Pose3d linkCoG2ref_link = link2ref_link;
+        linkCoG2ref_link.Pos() =
+            link2ref_link.Pos() +
+            link2ref_link.Rot().RotateVector(GzGetIgn(link_inertial, CoG, ()));
+        link_inertial.SetCoG(linkCoG2ref_link);
 
         return link_inertial;
     }
